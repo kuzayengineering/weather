@@ -200,6 +200,60 @@ nav.tab-bar button.active {
   display: block;
 }
 
+.hourly-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.hourly-inner {
+  min-width: 100%;
+}
+
+.hourly-columns {
+  display: flex;
+}
+
+.hourly-col {
+  width: 62px;
+  flex: 0 0 62px;
+  text-align: center;
+  font-size: 0.75rem;
+  padding-top: 0.25rem;
+}
+
+.hourly-symbol {
+  font-size: 1.4rem;
+}
+
+.hourly-pop {
+  color: var(--accent);
+  min-height: 1.1em;
+}
+
+.hourly-rh {
+  color: var(--text-muted);
+}
+
+.hourly-wind {
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 0.15rem;
+}
+
+.hourly-wind .wind-arrow {
+  display: inline-block;
+  font-size: 0.9rem;
+}
+
+.hourly-time {
+  color: var(--text-muted);
+  margin-top: 0.35rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.25rem;
+}
+
 .loading,
 .error {
   color: var(--text-muted);
