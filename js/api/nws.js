@@ -32,6 +32,9 @@ class NwsError extends Error {
  */
 async function cachedFetch(url, { ttlMs = 10 * 60 * 1000 } = {}) {
   const cached = cacheGet(url);
+  if (cached && cacheAgeMs(cached) < ttlMs) {
+    return { data: cached.data, stale: false, ageMs: cacheAgeMs(cached) };
+  }
 
   try {
     const res = await fetch(url, { headers: { Accept: 'application/geo+json, application/json' } });
@@ -83,6 +86,11 @@ export async function getObservationStations(points) {
 export async function getLatestObservation(stationId) {
   const url = `${BASE}/stations/${stationId}/observations/latest`;
   return cachedFetch(url, { ttlMs: 10 * 60 * 1000 });
+}
+
+/** Zone boundary polygon — cached indefinitely, zone boundaries don't change. */
+export async function getZone(zoneUrl) {
+  return cachedFetch(zoneUrl, { ttlMs: 30 * 24 * 60 * 60 * 1000 });
 }
 
 /** Convenience: current conditions from the nearest reporting station. */

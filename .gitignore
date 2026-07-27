@@ -2,3 +2,7 @@
 Thumbs.db
 *.log
 Weather Realm outline.docx
+
+# Local-only secrets — never commit real API keys to this public repo.
+# See js/config.example.js for the expected shape.
+js/config.local.js
