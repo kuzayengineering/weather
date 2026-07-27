@@ -3,6 +3,7 @@ import { getSettings, updateSettings, getFavorites } from './lib/storage.js';
 import { resolveActiveLocation } from './lib/geo.js';
 import { renderHomeTab } from './tabs/home.js';
 import { renderHourlyTab } from './tabs/hourly.js';
+import { renderDailyTab } from './tabs/daily.js';
 
 initTheme();
 
@@ -18,6 +19,7 @@ const panels = {
 const TAB_RENDERERS = {
   home: renderHomeTab,
   hourly: renderHourlyTab,
+  daily: renderDailyTab,
 };
 
 let currentLocation = null;

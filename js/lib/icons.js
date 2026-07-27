@@ -56,3 +56,20 @@ export function parseIconUrl(iconUrl) {
     return { symbol: DEFAULT.day, label: DEFAULT.label, highWind: false };
   }
 }
+
+/**
+ * Sky-cover-only symbol, deliberately ignoring precipitation — used for the
+ * Daily tab, which decides on its own (via dailySymbol.js) whether a day's
+ * icon should show rain at all, rather than trusting NWS's per-period icon
+ * (which shows rain for the whole day even when the odds are low/brief).
+ */
+export function symbolFromSkyCover(percent, isDaytime) {
+  const timeOfDay = isDaytime ? 'day' : 'night';
+  let code;
+  if (percent <= 12) code = 'skc';
+  else if (percent <= 37) code = 'few';
+  else if (percent <= 62) code = 'sct';
+  else if (percent <= 87) code = 'bkn';
+  else code = 'ovc';
+  return { symbol: CONDITION_MAP[code][timeOfDay], label: CONDITION_MAP[code].label };
+}
