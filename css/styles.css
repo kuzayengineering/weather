@@ -48,9 +48,10 @@ header.app-header {
   border-bottom: 1px solid var(--border);
 }
 
-header.app-header h1 {
-  font-size: 1.1rem;
-  margin: 0;
+.app-logo {
+  height: 28px;
+  width: auto;
+  display: block;
 }
 
 #location-label {
