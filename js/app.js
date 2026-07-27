@@ -1,9 +1,10 @@
 import { initTheme } from './lib/theme.js';
-import { getSettings, updateSettings, getFavorites } from './lib/storage.js';
+import { getSettings, getFavorites } from './lib/storage.js';
 import { resolveActiveLocation } from './lib/geo.js';
 import { renderHomeTab } from './tabs/home.js';
 import { renderHourlyTab } from './tabs/hourly.js';
 import { renderDailyTab } from './tabs/daily.js';
+import { renderSettingsTab } from './tabs/settings.js';
 
 initTheme();
 
@@ -36,7 +37,10 @@ tabButtons.forEach((btn) => {
   });
 });
 
-renderSettingsTabStub();
+renderSettingsTab(panels.settings, {
+  onUnitsOrThemeChange: refreshLoadedTabs,
+  onLocationSourceChange: reresolveLocationAndRefresh,
+});
 
 async function loadTab(tab) {
   const renderer = TAB_RENDERERS[tab];
@@ -50,6 +54,19 @@ async function refreshLoadedTabs() {
   const settings = getSettings();
   for (const tab of loadedTabs) {
     await TAB_RENDERERS[tab](panels[tab], currentLocation, settings);
+  }
+}
+
+/** Used when the active location itself changes (e.g. switching to a favorite). */
+async function reresolveLocationAndRefresh() {
+  const settings = getSettings();
+  const favorites = getFavorites();
+  try {
+    currentLocation = await resolveActiveLocation(settings, favorites);
+    document.getElementById('location-label').textContent = currentLocation.label;
+    await refreshLoadedTabs();
+  } catch (err) {
+    console.error(err);
   }
 }
 
@@ -67,39 +84,6 @@ async function boot() {
     panels.home.innerHTML = `<p class="error">Couldn't get your location. Check that location permission is allowed for this site, then reload.</p>`;
     console.error(err);
   }
-}
-
-// Minimal settings UI for now — units + theme only.
-// Favorites / notifications / widget config land in a later pass.
-function renderSettingsTabStub() {
-  const settings = getSettings();
-  panels.settings.innerHTML = `
-    <div class="card">
-      <h2>Units</h2>
-      <label><input type="radio" name="units" value="imperial" ${settings.units === 'imperial' ? 'checked' : ''}/> Imperial (°F, mph, in)</label><br/>
-      <label><input type="radio" name="units" value="metric" ${settings.units === 'metric' ? 'checked' : ''}/> Metric (°C, km/h, mm)</label>
-    </div>
-    <div class="card">
-      <h2>Theme</h2>
-      <label><input type="radio" name="theme" value="system" ${settings.theme === 'system' ? 'checked' : ''}/> Match system</label><br/>
-      <label><input type="radio" name="theme" value="light" ${settings.theme === 'light' ? 'checked' : ''}/> Light</label><br/>
-      <label><input type="radio" name="theme" value="dark" ${settings.theme === 'dark' ? 'checked' : ''}/> Dark</label>
-    </div>
-  `;
-
-  panels.settings.querySelectorAll('input[name="units"]').forEach((input) => {
-    input.addEventListener('change', async (e) => {
-      updateSettings({ units: e.target.value });
-      await refreshLoadedTabs();
-    });
-  });
-
-  panels.settings.querySelectorAll('input[name="theme"]').forEach((input) => {
-    input.addEventListener('change', async (e) => {
-      updateSettings({ theme: e.target.value });
-      initTheme();
-    });
-  });
 }
 
 boot();
