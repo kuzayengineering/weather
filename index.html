@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Weather Realm</title>
+  <meta name="theme-color" content="#000000" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body data-theme="dark">
+  <header class="app-header">
+    <h1>Weather Realm</h1>
+    <span id="location-label">Locating…</span>
+  </header>
+
+  <main>
+    <section id="tab-home" class="tab-panel active"></section>
+    <section id="tab-hourly" class="tab-panel">
+      <p class="loading">Hourly tab coming soon.</p>
+    </section>
+    <section id="tab-daily" class="tab-panel">
+      <p class="loading">Daily tab coming soon.</p>
+    </section>
+    <section id="tab-maps" class="tab-panel">
+      <p class="loading">Maps tab coming soon.</p>
+    </section>
+    <section id="tab-settings" class="tab-panel"></section>
+  </main>
+
+  <nav class="tab-bar">
+    <button data-tab="home" class="active"><span class="tab-icon">🏠</span>Home</button>
+    <button data-tab="hourly"><span class="tab-icon">🕐</span>Hourly</button>
+    <button data-tab="daily"><span class="tab-icon">📅</span>Daily</button>
+    <button data-tab="maps"><span class="tab-icon">🗺️</span>Maps</button>
+    <button data-tab="settings"><span class="tab-icon">⚙️</span>Settings</button>
+  </nav>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
