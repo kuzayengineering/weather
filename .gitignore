@@ -4,7 +4,3 @@ Thumbs.db
 Weather Realm outline.docx
 grok-image-*.jpg
 logo v1.jpg
-
-# Local-only secrets — never commit real API keys to this public repo.
-# See js/config.example.js for the expected shape.
-js/config.local.js

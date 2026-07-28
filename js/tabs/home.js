@@ -5,7 +5,7 @@ import { indoorEquivalentRH } from '../lib/psychro.js';
 import { valueAt, valuesInRange, gridWindMph } from '../lib/griddata.js';
 import { OSM_TILE_URL, RADAR_TILE_URL } from '../lib/mapTiles.js';
 import { windArrowHtml } from '../lib/wind.js';
-import { getNearbyAqi, getAqiForecast, worstReading } from '../lib/airnow.js';
+import { getCurrentAqi, getAqiForecast, aqiAt, formatAqi } from '../lib/airQuality.js';
 
 const cToF = (c) => (c * 9) / 5 + 32;
 
@@ -90,11 +90,9 @@ export async function renderHomeTab(container, location, settings) {
       nws.getGridData(points),
     ]);
 
-    // AQI is best-effort (local-dev only until the AirNow calls are proxied
-    // server-side — see js/config.example.js) and shouldn't break the rest
-    // of the page if it fails or isn't configured.
+    // AQI is best-effort — shouldn't break the rest of the page if it fails.
     const [aqiCurrentResult, aqiForecastResult] = await Promise.allSettled([
-      getNearbyAqi(location.lat, location.lon),
+      getCurrentAqi(location.lat, location.lon),
       getAqiForecast(location.lat, location.lon),
     ]);
     const aqiCurrent = aqiCurrentResult.status === 'fulfilled' ? aqiCurrentResult.value : { available: false };
@@ -124,11 +122,6 @@ export async function renderHomeTab(container, location, settings) {
   }
 }
 
-function formatAqi(entry) {
-  if (!entry) return null;
-  return entry.aqi != null ? `${entry.aqi} (${entry.category.Name})` : entry.category.Name;
-}
-
 function renderContent(container, { location, settings, points, alerts, current, forecast, gridData, aqiCurrent, aqiForecast, stale, staleAgeMs }) {
   const units = settings.units;
 
@@ -141,8 +134,7 @@ function renderContent(container, { location, settings, points, alerts, current,
   const currentWindMph = current.properties.windSpeed.value != null ? kmhToMph(current.properties.windSpeed.value) : null;
   const currentWindDir = current.properties.windDirection.value;
 
-  const currentAqiReading = aqiCurrent.available ? worstReading(aqiCurrent.readings) : null;
-  const currentAqiText = currentAqiReading ? `${currentAqiReading.AQI} (${currentAqiReading.Category.Name})` : null;
+  const currentAqiText = aqiCurrent.available ? formatAqi(aqiCurrent.aqi) : null;
 
   const now = new Date();
   const precipSummary = summarizeNext8Hours(gridData, now);
@@ -186,12 +178,9 @@ function renderContent(container, { location, settings, points, alerts, current,
   const tomorrowNightWindMph = tomorrowNightSampleTime ? gridWindMph(gridWindSpeed, tomorrowNightSampleTime) : null;
   const tomorrowNightWindDir = tomorrowNightSampleTime ? valueAt(gridWindDir, tomorrowNightSampleTime) : null;
 
-  // AirNow only forecasts AQI per calendar day, not day/night — match by the
-  // forecast period's own local date rather than the browser's "today".
-  const todayDateStr = tonight ? tonight.startTime.slice(0, 10) : null;
-  const tomorrowDateStr = tomorrow ? tomorrow.startTime.slice(0, 10) : null;
-  const tonightAqiText = aqiForecast.available && todayDateStr ? formatAqi(aqiForecast.byDate.get(todayDateStr)) : null;
-  const tomorrowAqiText = aqiForecast.available && tomorrowDateStr ? formatAqi(aqiForecast.byDate.get(tomorrowDateStr)) : null;
+  const tonightAqiText = aqiForecast.available && tonightSampleTime ? formatAqi(aqiAt(aqiForecast, tonightSampleTime)) : null;
+  const tomorrowAqiText = aqiForecast.available && tomorrowSampleTime ? formatAqi(aqiAt(aqiForecast, tomorrowSampleTime)) : null;
+  const tomorrowNightAqiText = aqiForecast.available && tomorrowNightSampleTime ? formatAqi(aqiAt(aqiForecast, tomorrowNightSampleTime)) : null;
 
   const overnightMaxTempF = tonight ? getOvernightWindowMaxTempF(gridTemp, tonight) : null;
   const windowsOpen =
@@ -277,7 +266,7 @@ function renderContent(container, { location, settings, points, alerts, current,
             ${windArrowHtml(tomorrowNightWindDir, tomorrowNightWindMph, 'wind-arrow-inline')}
             ${tomorrowNightWindMph != null ? formatWindSpeed(tomorrowNightWindMph, units) : '—'}
           </div>
-          <div class="sub">AQI ${tomorrowAqiText || '—'}</div>
+          <div class="sub">AQI ${tomorrowNightAqiText || '—'}</div>
         </div>
       </div>
     </div>

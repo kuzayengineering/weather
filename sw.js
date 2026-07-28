@@ -7,7 +7,7 @@
 // this worker deliberately leaves api.weather.gov (and other cross-origin)
 // requests alone rather than trying to cache them too.
 
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const CACHE_NAME = `weather-realm-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
@@ -23,7 +23,7 @@ const PRECACHE_URLS = [
   './icons/favicon.ico',
   './js/app.js',
   './js/api/nws.js',
-  './js/lib/airnow.js',
+  './js/lib/airQuality.js',
   './js/lib/dailySymbol.js',
   './js/lib/geo.js',
   './js/lib/geocode.js',

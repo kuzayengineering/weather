@@ -79,6 +79,7 @@ nav.tab-bar {
   bottom: 0;
   left: 0;
   right: 0;
+  z-index: 1001; /* above Leaflet's own controls (z-index:1000) so the map can never paint over it */
   display: flex;
   background: var(--bg-elevated);
   border-top: 1px solid var(--border);
@@ -226,6 +227,16 @@ nav.tab-bar button.active {
 .upcoming-grid .item .sub {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+.home-map,
+#leaflet-map {
+  /* Leaflet's own controls use z-index:1000 internally. Without this, a
+     container that's position:relative but has no z-index of its own doesn't
+     contain that stacking context, so those controls can escape and paint
+     over page-level fixed elements (the bottom tab bar) wherever they
+     geometrically overlap it. */
+  isolation: isolate;
 }
 
 .home-map {

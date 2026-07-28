@@ -1,5 +1,5 @@
 import * as nws from '../api/nws.js';
-import { getNearbyAqi, aqiColor } from '../lib/airnow.js';
+import { getCurrentAqi, aqiCategory, aqiColor } from '../lib/airQuality.js';
 import { OSM_TILE_URL, RADAR_TILE_URL, CLOUD_TILE_URL } from '../lib/mapTiles.js';
 
 const ALERT_COLORS = {
@@ -154,22 +154,19 @@ async function loadAdvisories(location, layerGroup) {
 
 async function loadAqi(location, layerGroup) {
   try {
-    const result = await getNearbyAqi(location.lat, location.lon, 100);
+    const result = await getCurrentAqi(location.lat, location.lon);
     if (!result.available) return;
 
-    for (const reading of result.readings) {
-      const marker = L.circleMarker([reading.Latitude, reading.Longitude], {
-        radius: 10,
-        color: aqiColor(reading.Category.Number),
-        fillColor: aqiColor(reading.Category.Number),
-        fillOpacity: 0.8,
-        weight: 1,
-      });
-      marker.bindPopup(
-        `<strong>${reading.ReportingArea}</strong><br/>${reading.ParameterName} AQI: ${reading.AQI} (${reading.Category.Name})`
-      );
-      marker.addTo(layerGroup);
-    }
+    const category = aqiCategory(result.aqi);
+    const marker = L.circleMarker([location.lat, location.lon], {
+      radius: 12,
+      color: aqiColor(category.number),
+      fillColor: aqiColor(category.number),
+      fillOpacity: 0.8,
+      weight: 1,
+    });
+    marker.bindPopup(`<strong>Air Quality</strong><br/>AQI: ${result.aqi} (${category.name})`);
+    marker.addTo(layerGroup);
   } catch (err) {
     console.error('Failed to load AQI layer', err);
   }
