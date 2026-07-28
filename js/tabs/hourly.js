@@ -2,6 +2,7 @@ import * as nws from '../api/nws.js';
 import { parseIconUrl } from '../lib/icons.js';
 import { formatTemp } from '../lib/units.js';
 import { valueAt, gridWindMph } from '../lib/griddata.js';
+import { windArrowSize } from '../lib/wind.js';
 
 const HOURS_SHOWN = 36;
 const COL_WIDTH = 62; // px — keep in sync with css/styles.css .hourly-col width
@@ -101,12 +102,6 @@ function renderContent(container, { hours, gridGust, gridWindDir, units }) {
   drawHumidityChart(rows, totalWidth);
   drawWindChart(rows, totalWidth);
   enableDragScroll(document.getElementById('hourly-scroll'));
-}
-
-/** Arrow glyph size in px, scaled by wind speed so stronger wind reads as a bigger arrow. */
-function windArrowSize(mph) {
-  if (mph == null) return 14;
-  return Math.max(12, Math.min(30, 12 + mph * 0.8));
 }
 
 function cssVar(name, fallback) {

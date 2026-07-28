@@ -1,9 +1,11 @@
 import * as nws from '../api/nws.js';
 import { parseIconUrl } from '../lib/icons.js';
-import { formatTemp, formatPrecip } from '../lib/units.js';
+import { formatTemp, formatPrecip, formatWindSpeed, kmhToMph } from '../lib/units.js';
 import { indoorEquivalentRH } from '../lib/psychro.js';
-import { valueAt, valuesInRange } from '../lib/griddata.js';
+import { valueAt, valuesInRange, gridWindMph } from '../lib/griddata.js';
 import { OSM_TILE_URL, RADAR_TILE_URL } from '../lib/mapTiles.js';
+import { windArrowHtml } from '../lib/wind.js';
+import { getNearbyAqi, getAqiForecast, worstReading } from '../lib/airnow.js';
 
 const cToF = (c) => (c * 9) / 5 + 32;
 
@@ -88,6 +90,16 @@ export async function renderHomeTab(container, location, settings) {
       nws.getGridData(points),
     ]);
 
+    // AQI is best-effort (local-dev only until the AirNow calls are proxied
+    // server-side — see js/config.example.js) and shouldn't break the rest
+    // of the page if it fails or isn't configured.
+    const [aqiCurrentResult, aqiForecastResult] = await Promise.allSettled([
+      getNearbyAqi(location.lat, location.lon),
+      getAqiForecast(location.lat, location.lon),
+    ]);
+    const aqiCurrent = aqiCurrentResult.status === 'fulfilled' ? aqiCurrentResult.value : { available: false };
+    const aqiForecast = aqiForecastResult.status === 'fulfilled' ? aqiForecastResult.value : { available: false };
+
     const anyStale = [points, alerts, current, forecast, gridDataRes].some((r) => r.stale);
     const oldestAgeMs = Math.max(
       ...[points, alerts, current, forecast, gridDataRes].map((r) => r.ageMs || 0)
@@ -101,6 +113,8 @@ export async function renderHomeTab(container, location, settings) {
       current: current.data,
       forecast: forecast.data,
       gridData: gridDataRes.data,
+      aqiCurrent,
+      aqiForecast,
       stale: anyStale,
       staleAgeMs: oldestAgeMs,
     });
@@ -110,7 +124,12 @@ export async function renderHomeTab(container, location, settings) {
   }
 }
 
-function renderContent(container, { location, settings, points, alerts, current, forecast, gridData, stale, staleAgeMs }) {
+function formatAqi(entry) {
+  if (!entry) return null;
+  return entry.aqi != null ? `${entry.aqi} (${entry.category.Name})` : entry.category.Name;
+}
+
+function renderContent(container, { location, settings, points, alerts, current, forecast, gridData, aqiCurrent, aqiForecast, stale, staleAgeMs }) {
   const units = settings.units;
 
   // --- Current conditions ---
@@ -118,6 +137,12 @@ function renderContent(container, { location, settings, points, alerts, current,
   const currentRH = current.properties.relativeHumidity.value;
   const icon = parseIconUrl(current.properties.icon);
   const alertFeatures = alerts.features || [];
+
+  const currentWindMph = current.properties.windSpeed.value != null ? kmhToMph(current.properties.windSpeed.value) : null;
+  const currentWindDir = current.properties.windDirection.value;
+
+  const currentAqiReading = aqiCurrent.available ? worstReading(aqiCurrent.readings) : null;
+  const currentAqiText = currentAqiReading ? `${currentAqiReading.AQI} (${currentAqiReading.Category.Name})` : null;
 
   const now = new Date();
   const precipSummary = summarizeNext8Hours(gridData, now);
@@ -135,6 +160,8 @@ function renderContent(container, { location, settings, points, alerts, current,
   const gridTemp = gridData.properties.temperature;
   const gridDewpoint = gridData.properties.dewpoint;
   const gridRH = gridData.properties.relativeHumidity;
+  const gridWindSpeed = gridData.properties.windSpeed;
+  const gridWindDir = gridData.properties.windDirection;
 
   const tonightLowTime = tonight ? findExtremeTime(gridTemp, new Date(tonight.startTime), new Date(tonight.endTime), 'min') : null;
   const tomorrowHighTime = tomorrow ? findExtremeTime(gridTemp, new Date(tomorrow.startTime), new Date(tomorrow.endTime), 'max') : null;
@@ -151,6 +178,20 @@ function renderContent(container, { location, settings, points, alerts, current,
 
   const tomorrowRH = tomorrowSampleTime ? valueAt(gridRH, tomorrowSampleTime) : null;
   const tomorrowNightRH = tomorrowNightSampleTime ? valueAt(gridRH, tomorrowNightSampleTime) : null;
+
+  const tonightWindMph = tonightSampleTime ? gridWindMph(gridWindSpeed, tonightSampleTime) : null;
+  const tonightWindDir = tonightSampleTime ? valueAt(gridWindDir, tonightSampleTime) : null;
+  const tomorrowWindMph = tomorrowSampleTime ? gridWindMph(gridWindSpeed, tomorrowSampleTime) : null;
+  const tomorrowWindDir = tomorrowSampleTime ? valueAt(gridWindDir, tomorrowSampleTime) : null;
+  const tomorrowNightWindMph = tomorrowNightSampleTime ? gridWindMph(gridWindSpeed, tomorrowNightSampleTime) : null;
+  const tomorrowNightWindDir = tomorrowNightSampleTime ? valueAt(gridWindDir, tomorrowNightSampleTime) : null;
+
+  // AirNow only forecasts AQI per calendar day, not day/night — match by the
+  // forecast period's own local date rather than the browser's "today".
+  const todayDateStr = tonight ? tonight.startTime.slice(0, 10) : null;
+  const tomorrowDateStr = tomorrow ? tomorrow.startTime.slice(0, 10) : null;
+  const tonightAqiText = aqiForecast.available && todayDateStr ? formatAqi(aqiForecast.byDate.get(todayDateStr)) : null;
+  const tomorrowAqiText = aqiForecast.available && tomorrowDateStr ? formatAqi(aqiForecast.byDate.get(tomorrowDateStr)) : null;
 
   const overnightMaxTempF = tonight ? getOvernightWindowMaxTempF(gridTemp, tonight) : null;
   const windowsOpen =
@@ -177,6 +218,11 @@ function renderContent(container, { location, settings, points, alerts, current,
           <div class="temp">${currentTempF != null ? formatTemp(currentTempF, units) : '—'}</div>
           <div class="meta">${icon.label}${current.properties.textDescription && current.properties.textDescription !== icon.label ? ` · ${current.properties.textDescription}` : ''}</div>
           <div class="meta">RH ${currentRH != null ? Math.round(currentRH) : '—'}%</div>
+          <div class="meta">
+            ${windArrowHtml(currentWindDir, currentWindMph, 'wind-arrow-inline')}
+            Wind ${currentWindMph != null ? formatWindSpeed(currentWindMph, units) : '—'}
+          </div>
+          <div class="meta">AQI ${currentAqiText || '—'}</div>
         </div>
       </div>
       <p class="meta" style="margin-top:0.75rem;">
@@ -199,6 +245,11 @@ function renderContent(container, { location, settings, points, alerts, current,
           <div class="sub">Dew pt ${tonightDewF != null ? formatTemp(tonightDewF, units) : '—'}</div>
           <div class="sub">RH ${tonightRH != null ? Math.round(tonightRH) : '—'}%</div>
           <div class="sub">Indoor RH @70°F: ${tonightIndoorRH != null ? Math.round(tonightIndoorRH) + '%' : '—'}</div>
+          <div class="sub sub-wind">
+            ${windArrowHtml(tonightWindDir, tonightWindMph, 'wind-arrow-inline')}
+            ${tonightWindMph != null ? formatWindSpeed(tonightWindMph, units) : '—'}
+          </div>
+          <div class="sub">AQI ${tonightAqiText || '—'}</div>
           <div class="windows-badge ${windowsOpen ? 'windows-open' : 'windows-closed'}">
             <span class="windows-symbol">${windowsOpen ? '🌬️' : '🪟'}</span>
             <span>${windowsOpen ? 'Windows Open' : 'Windows Closed'}</span>
@@ -210,6 +261,11 @@ function renderContent(container, { location, settings, points, alerts, current,
           <div class="value">${tomorrow ? formatTemp(tomorrow.temperatureUnit === 'F' ? tomorrow.temperature : cToF(tomorrow.temperature), units) : '—'}</div>
           <div class="sub">${tomorrowHighTime ? `at ${formatTime(tomorrowHighTime)}` : ''}</div>
           <div class="sub">RH ${tomorrowRH != null ? Math.round(tomorrowRH) : '—'}%</div>
+          <div class="sub sub-wind">
+            ${windArrowHtml(tomorrowWindDir, tomorrowWindMph, 'wind-arrow-inline')}
+            ${tomorrowWindMph != null ? formatWindSpeed(tomorrowWindMph, units) : '—'}
+          </div>
+          <div class="sub">AQI ${tomorrowAqiText || '—'}</div>
         </div>
         <div class="item">
           <div class="label">Tomorrow Night's Low</div>
@@ -217,6 +273,11 @@ function renderContent(container, { location, settings, points, alerts, current,
           <div class="value">${tomorrowNight ? formatTemp(tomorrowNight.temperatureUnit === 'F' ? tomorrowNight.temperature : cToF(tomorrowNight.temperature), units) : '—'}</div>
           <div class="sub">${tomorrowNightLowTime ? `at ${formatTime(tomorrowNightLowTime)}` : ''}</div>
           <div class="sub">RH ${tomorrowNightRH != null ? Math.round(tomorrowNightRH) : '—'}%</div>
+          <div class="sub sub-wind">
+            ${windArrowHtml(tomorrowNightWindDir, tomorrowNightWindMph, 'wind-arrow-inline')}
+            ${tomorrowNightWindMph != null ? formatWindSpeed(tomorrowNightWindMph, units) : '—'}
+          </div>
+          <div class="sub">AQI ${tomorrowAqiText || '—'}</div>
         </div>
       </div>
     </div>

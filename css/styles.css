@@ -308,6 +308,17 @@ nav.tab-bar button.active {
   line-height: 1;
 }
 
+.wind-arrow-inline {
+  vertical-align: middle;
+  margin-right: 0.25rem;
+}
+
+.sub-wind {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .daily-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;

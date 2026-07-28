@@ -30,6 +30,38 @@ export async function getNearbyAqi(lat, lon, distanceMiles = 50) {
   return { available: true, readings };
 }
 
+/** AirNow reports one entry per pollutant; the headline AQI is the worst of them. */
+export function worstReading(readings) {
+  if (!readings?.length) return null;
+  return readings.reduce((worst, r) => (!worst || r.AQI > worst.AQI ? r : worst), null);
+}
+
+/**
+ * Daily AQI forecast (AirNow only forecasts per calendar day, not day/night).
+ * @returns {Promise<{available: boolean, byDate?: Map<string, {aqi: number|null, category: {Number:number, Name:string}}>}>}
+ */
+export async function getAqiForecast(lat, lon, distanceMiles = 50) {
+  const key = await getApiKey();
+  if (!key) return { available: false };
+
+  const url = `https://www.airnowapi.org/aq/forecast/latLong/?format=application/json&latitude=${lat}&longitude=${lon}&distance=${distanceMiles}&API_KEY=${key}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`AirNow API ${res.status}`);
+  const entries = await res.json();
+
+  const byDate = new Map();
+  for (const entry of entries) {
+    const existing = byDate.get(entry.DateForecast);
+    // AirNow's forecast AQI value is often -1 (not yet calculated) — the
+    // category is still meaningful even when the number isn't, so keep
+    // whichever entry has the worse category, preferring a real AQI number.
+    if (!existing || entry.Category.Number > existing.category.Number) {
+      byDate.set(entry.DateForecast, { aqi: entry.AQI >= 0 ? entry.AQI : null, category: entry.Category });
+    }
+  }
+  return { available: true, byDate };
+}
+
 const AQI_CATEGORY_COLORS = {
   1: '#00e400', // Good
   2: '#ffff00', // Moderate
