@@ -30,6 +30,26 @@ function formatTime(date) {
   return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
+const WINDOWS_OPEN_MAX_INDOOR_RH = 55;
+const WINDOWS_OPEN_MAX_OUTDOOR_TEMP_F = 68;
+
+/**
+ * Highest outdoor temperature between 9 PM and 4 AM, in the forecast
+ * location's own local time (not the browser's) — derived from `tonight`'s
+ * ISO offset so this stays correct for a favorite location in another time zone.
+ */
+function getOvernightWindowMaxTempF(gridTemp, tonight) {
+  if (!tonight?.startTime) return null;
+  const datePart = tonight.startTime.slice(0, 10);
+  const offsetPart = tonight.startTime.slice(19);
+  const windowStart = new Date(`${datePart}T21:00:00${offsetPart}`);
+  const windowEnd = new Date(windowStart.getTime() + 7 * 3600000); // 9 PM -> 4 AM
+
+  const intervals = valuesInRange(gridTemp, windowStart, windowEnd);
+  if (!intervals.length) return null;
+  return Math.max(...intervals.map((i) => cToF(i.value)));
+}
+
 function summarizeNext8Hours(gridData, now) {
   const end = new Date(now.getTime() + 8 * 3600000);
   const pop = valuesInRange(gridData.properties.probabilityOfPrecipitation, now, end);
@@ -132,6 +152,13 @@ function renderContent(container, { location, settings, points, alerts, current,
   const tomorrowRH = tomorrowSampleTime ? valueAt(gridRH, tomorrowSampleTime) : null;
   const tomorrowNightRH = tomorrowNightSampleTime ? valueAt(gridRH, tomorrowNightSampleTime) : null;
 
+  const overnightMaxTempF = tonight ? getOvernightWindowMaxTempF(gridTemp, tonight) : null;
+  const windowsOpen =
+    tonightIndoorRH != null &&
+    tonightIndoorRH < WINDOWS_OPEN_MAX_INDOOR_RH &&
+    overnightMaxTempF != null &&
+    overnightMaxTempF < WINDOWS_OPEN_MAX_OUTDOOR_TEMP_F;
+
   const tonightIcon = tonight ? parseIconUrl(tonight.icon) : null;
   const tomorrowIcon = tomorrow ? parseIconUrl(tomorrow.icon) : null;
   const tomorrowNightIcon = tomorrowNight ? parseIconUrl(tomorrowNight.icon) : null;
@@ -165,13 +192,17 @@ function renderContent(container, { location, settings, points, alerts, current,
       <h2>Upcoming</h2>
       <div class="upcoming-grid">
         <div class="item">
-          <div class="label">Tonight's Low</div>
+          <div class="label">Tonight</div>
           ${tonightIcon ? `<div class="upcoming-symbol">${tonightIcon.symbol}</div>` : ''}
           <div class="value">${tonight ? formatTemp(tonight.temperatureUnit === 'F' ? tonight.temperature : cToF(tonight.temperature), units) : '—'}</div>
           <div class="sub">${tonightLowTime ? `at ${formatTime(tonightLowTime)}` : ''}</div>
           <div class="sub">Dew pt ${tonightDewF != null ? formatTemp(tonightDewF, units) : '—'}</div>
           <div class="sub">RH ${tonightRH != null ? Math.round(tonightRH) : '—'}%</div>
           <div class="sub">Indoor RH @70°F: ${tonightIndoorRH != null ? Math.round(tonightIndoorRH) + '%' : '—'}</div>
+          <div class="windows-badge ${windowsOpen ? 'windows-open' : 'windows-closed'}">
+            <span class="windows-symbol">${windowsOpen ? '🌬️' : '🪟'}</span>
+            <span>${windowsOpen ? 'Windows Open' : 'Windows Closed'}</span>
+          </div>
         </div>
         <div class="item">
           <div class="label">Tomorrow's High</div>

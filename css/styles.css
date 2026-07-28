@@ -183,6 +183,34 @@ nav.tab-bar button.active {
   margin: 0.2rem 0;
 }
 
+.windows-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.6rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.windows-badge .windows-symbol {
+  font-size: 0.9rem;
+}
+
+.windows-badge.windows-open {
+  background: rgba(102, 187, 106, 0.15);
+  color: #66bb6a;
+}
+
+.windows-badge.windows-closed {
+  background: var(--bg);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
 .upcoming-grid .item .label {
   font-size: 0.75rem;
   color: var(--text-muted);
