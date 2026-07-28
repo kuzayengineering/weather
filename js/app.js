@@ -1,7 +1,7 @@
 import { initTheme } from './lib/theme.js';
 import { getSettings, getFavorites } from './lib/storage.js';
 import { resolveActiveLocation } from './lib/geo.js';
-import { renderHomeTab } from './tabs/home.js';
+import { renderHomeTab, refreshHomeMapSize } from './tabs/home.js';
 import { renderHourlyTab } from './tabs/hourly.js';
 import { renderDailyTab } from './tabs/daily.js';
 import { renderMapsTab } from './tabs/maps.js';
@@ -36,6 +36,7 @@ tabButtons.forEach((btn) => {
     const tab = btn.dataset.tab;
     panels[tab].classList.add('active');
     loadTab(tab);
+    if (tab === 'home') refreshHomeMapSize();
   });
 });
 

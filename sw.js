@@ -7,7 +7,7 @@
 // this worker deliberately leaves api.weather.gov (and other cross-origin)
 // requests alone rather than trying to cache them too.
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE_NAME = `weather-realm-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
@@ -29,6 +29,7 @@ const PRECACHE_URLS = [
   './js/lib/geocode.js',
   './js/lib/griddata.js',
   './js/lib/icons.js',
+  './js/lib/mapTiles.js',
   './js/lib/psychro.js',
   './js/lib/storage.js',
   './js/lib/sun.js',

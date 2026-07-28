@@ -3,8 +3,11 @@ import { parseIconUrl } from '../lib/icons.js';
 import { formatTemp, formatPrecip } from '../lib/units.js';
 import { indoorEquivalentRH } from '../lib/psychro.js';
 import { valueAt, valuesInRange } from '../lib/griddata.js';
+import { OSM_TILE_URL, RADAR_TILE_URL } from '../lib/mapTiles.js';
 
 const cToF = (c) => (c * 9) / 5 + 32;
+
+let homeMap = null;
 
 function findPeriod(periods, predicate) {
   return periods.find(predicate);
@@ -179,18 +182,45 @@ function renderContent(container, { location, settings, points, alerts, current,
       </div>
     </div>
 
-    <div class="card radar-box" id="radar-box" style="cursor:pointer;">
+    <div class="card radar-box">
       <h2>Radar</h2>
-      ${
-        points.properties.radarStation
-          ? `<img src="https://radar.weather.gov/ridge/standard/${points.properties.radarStation}_0.gif" alt="Radar snapshot near ${points.properties.radarStation}" />`
-          : '<p class="meta">No nearby radar station found.</p>'
-      }
-      <p class="meta" style="margin-top:0.5rem;">Tap to view on the full map</p>
+      <div id="home-radar-map" class="home-map"></div>
+      <button id="open-full-map-btn" class="link-btn">Open full map ↗</button>
     </div>
   `;
 
-  container.querySelector('#radar-box')?.addEventListener('click', () => {
+  container.querySelector('#open-full-map-btn')?.addEventListener('click', () => {
     document.querySelector('button[data-tab="maps"]')?.click();
   });
+
+  initHomeMap(location);
+}
+
+function initHomeMap(location) {
+  if (homeMap) {
+    try {
+      homeMap.remove();
+    } catch {
+      // container already gone (innerHTML was replaced) — nothing to clean up
+    }
+    homeMap = null;
+  }
+
+  homeMap = L.map('home-radar-map', {
+    center: [location.lat, location.lon],
+    zoom: 7,
+    scrollWheelZoom: false, // avoid hijacking the page scroll when the user scrolls past it
+  });
+
+  L.tileLayer(OSM_TILE_URL, { attribution: '&copy; OpenStreetMap contributors', maxZoom: 12 }).addTo(homeMap);
+  L.tileLayer(RADAR_TILE_URL.replace('{time}', '900913'), {
+    opacity: 0.65,
+    attribution: 'Radar: Iowa Environmental Mesonet / NEXRAD',
+  }).addTo(homeMap);
+}
+
+/** Called by app.js when the Home tab becomes active again, in case the map
+ *  was (re)created while its container was hidden and sized itself to zero. */
+export function refreshHomeMapSize() {
+  homeMap?.invalidateSize();
 }

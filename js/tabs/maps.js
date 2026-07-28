@@ -1,9 +1,6 @@
 import * as nws from '../api/nws.js';
 import { getNearbyAqi, aqiColor } from '../lib/airnow.js';
-
-const RADAR_TILE_URL = 'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-{time}/{z}/{x}/{y}.png';
-const CLOUD_TILE_URL = 'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/goes_east_ir4/{z}/{x}/{y}.png';
-const OSM_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+import { OSM_TILE_URL, RADAR_TILE_URL, CLOUD_TILE_URL } from '../lib/mapTiles.js';
 
 const ALERT_COLORS = {
   Extreme: '#7e0023',
