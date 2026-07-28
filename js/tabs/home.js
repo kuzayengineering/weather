@@ -132,6 +132,10 @@ function renderContent(container, { location, settings, points, alerts, current,
   const tomorrowRH = tomorrowSampleTime ? valueAt(gridRH, tomorrowSampleTime) : null;
   const tomorrowNightRH = tomorrowNightSampleTime ? valueAt(gridRH, tomorrowNightSampleTime) : null;
 
+  const tonightIcon = tonight ? parseIconUrl(tonight.icon) : null;
+  const tomorrowIcon = tomorrow ? parseIconUrl(tomorrow.icon) : null;
+  const tomorrowNightIcon = tomorrowNight ? parseIconUrl(tomorrowNight.icon) : null;
+
   container.innerHTML = `
     <div class="stale-banner ${stale ? 'visible' : ''}">
       Showing cached data${staleAgeMs && Number.isFinite(staleAgeMs) ? ` from ${Math.round(staleAgeMs / 60000)} min ago` : ''}${staleAgeMs > 3600000 ? ' — this may be out of date.' : '.'}
@@ -162,22 +166,26 @@ function renderContent(container, { location, settings, points, alerts, current,
       <div class="upcoming-grid">
         <div class="item">
           <div class="label">Tonight's Low</div>
+          ${tonightIcon ? `<div class="upcoming-symbol">${tonightIcon.symbol}</div>` : ''}
           <div class="value">${tonight ? formatTemp(tonight.temperatureUnit === 'F' ? tonight.temperature : cToF(tonight.temperature), units) : '—'}</div>
+          <div class="sub">${tonightLowTime ? `at ${formatTime(tonightLowTime)}` : ''}</div>
           <div class="sub">Dew pt ${tonightDewF != null ? formatTemp(tonightDewF, units) : '—'}</div>
           <div class="sub">RH ${tonightRH != null ? Math.round(tonightRH) : '—'}%</div>
           <div class="sub">Indoor RH @70°F: ${tonightIndoorRH != null ? Math.round(tonightIndoorRH) + '%' : '—'}</div>
         </div>
         <div class="item">
           <div class="label">Tomorrow's High</div>
+          ${tomorrowIcon ? `<div class="upcoming-symbol">${tomorrowIcon.symbol}</div>` : ''}
           <div class="value">${tomorrow ? formatTemp(tomorrow.temperatureUnit === 'F' ? tomorrow.temperature : cToF(tomorrow.temperature), units) : '—'}</div>
-          <div class="sub">RH ${tomorrowRH != null ? Math.round(tomorrowRH) : '—'}%</div>
           <div class="sub">${tomorrowHighTime ? `at ${formatTime(tomorrowHighTime)}` : ''}</div>
+          <div class="sub">RH ${tomorrowRH != null ? Math.round(tomorrowRH) : '—'}%</div>
         </div>
         <div class="item">
           <div class="label">Tomorrow Night's Low</div>
+          ${tomorrowNightIcon ? `<div class="upcoming-symbol">${tomorrowNightIcon.symbol}</div>` : ''}
           <div class="value">${tomorrowNight ? formatTemp(tomorrowNight.temperatureUnit === 'F' ? tomorrowNight.temperature : cToF(tomorrowNight.temperature), units) : '—'}</div>
-          <div class="sub">RH ${tomorrowNightRH != null ? Math.round(tomorrowNightRH) : '—'}%</div>
           <div class="sub">${tomorrowNightLowTime ? `at ${formatTime(tomorrowNightLowTime)}` : ''}</div>
+          <div class="sub">RH ${tomorrowNightRH != null ? Math.round(tomorrowNightRH) : '—'}%</div>
         </div>
       </div>
     </div>

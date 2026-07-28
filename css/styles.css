@@ -178,6 +178,11 @@ nav.tab-bar button.active {
   text-align: center;
 }
 
+.upcoming-symbol {
+  font-size: 1.6rem;
+  margin: 0.2rem 0;
+}
+
 .upcoming-grid .item .label {
   font-size: 0.75rem;
   color: var(--text-muted);
