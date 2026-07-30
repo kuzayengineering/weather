@@ -199,7 +199,7 @@ function renderContent(container, { location, settings, points, alerts, current,
     </div>
 
     <div class="card">
-      <h2>Current Conditions</h2>
+      <h2>Current Conditions in ${location.label}</h2>
       ${alertFeatures.map((f) => `<div class="alert-banner">⚠️ ${f.properties.event}: ${f.properties.headline || ''}</div>`).join('')}
       <div class="current-conditions">
         <div class="symbol">${icon.symbol}</div>

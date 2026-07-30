@@ -1,3 +1,5 @@
+import { reverseGeocode } from './geocode.js';
+
 const LAST_LOCATION_KEY = 'wr:lastLocation';
 
 /** Resolves the active location per Settings: current GPS position or the chosen favorite. */
@@ -18,12 +20,19 @@ export function getCurrentPosition() {
     }
 
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const location = {
-          lat: pos.coords.latitude,
-          lon: pos.coords.longitude,
-          label: 'Current Location',
-        };
+      async (pos) => {
+        const { latitude: lat, longitude: lon } = pos.coords;
+
+        let label = 'Current Location';
+        try {
+          const reverse = await reverseGeocode(lat, lon);
+          if (reverse?.label) label = reverse.label;
+        } catch {
+          // Reverse geocoding is best-effort — fall back to a generic label
+          // rather than failing the whole location resolution over it.
+        }
+
+        const location = { lat, lon, label };
         localStorage.setItem(LAST_LOCATION_KEY, JSON.stringify(location));
         resolve(location);
       },
