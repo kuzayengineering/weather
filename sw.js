@@ -7,7 +7,7 @@
 // this worker deliberately leaves api.weather.gov (and other cross-origin)
 // requests alone rather than trying to cache them too.
 
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v6';
 const CACHE_NAME = `weather-realm-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [

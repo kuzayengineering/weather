@@ -309,8 +309,12 @@ nav.tab-bar button.active {
 }
 
 .hourly-row-wind-dir {
-  margin-top: 0.25rem;
-  padding-bottom: 0.25rem;
+  margin-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  /* arrows can now render well beyond the 62px column width at high wind
+     speeds — let them overflow into neighboring empty space instead of
+     fighting for a box that would clip or force reflow */
+  overflow: visible;
 }
 
 .wind-arrow {
@@ -321,13 +325,14 @@ nav.tab-bar button.active {
 
 .wind-arrow-inline {
   vertical-align: middle;
-  margin-right: 0.25rem;
+  margin-right: 0.4rem;
 }
 
 .sub-wind {
   display: flex;
   align-items: center;
   justify-content: center;
+  margin: 0.4rem 0;
 }
 
 .daily-scroll {
