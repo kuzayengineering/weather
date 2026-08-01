@@ -21,7 +21,7 @@ export function formatWindSpeed(valueMph, units) {
 
 export function formatPrecip(valueIn, units) {
   const v = units === 'metric' ? inToMm(valueIn) : valueIn;
-  const decimals = units === 'metric' ? 0 : 2;
+  const decimals = units === 'metric' ? 0 : 1;
   return `${v.toFixed(decimals)} ${units === 'metric' ? 'mm' : 'in'}`;
 }
 

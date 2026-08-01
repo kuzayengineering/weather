@@ -68,7 +68,7 @@ function summarizeNext8Hours(gridData, now) {
   let kind = 'precipitation';
   const weatherAtStart = weather.find((w) => w.start <= (significant?.start || now));
   const wv = weatherAtStart?.value?.[0]?.weather;
-  if (wv) kind = wv;
+  if (wv) kind = wv.replace(/_/g, ' '); // grid data's raw enum values are underscore_separated
 
   return {
     expected: true,
