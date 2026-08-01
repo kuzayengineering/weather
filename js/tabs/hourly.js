@@ -14,7 +14,7 @@ function parseWindSpeedMph(str) {
   return match ? Number(match[0]) : null;
 }
 
-let charts = { temp: null, humidity: null, wind: null };
+let charts = { temp: null, pop: null, humidity: null, wind: null };
 
 export async function renderHourlyTab(container, location, settings) {
   container.innerHTML = '<p class="loading">Loading hourly forecast…</p>';
@@ -40,6 +40,7 @@ function renderContent(container, { hours, gridGust, gridWindDir, units }) {
   const rows = hours.map((h, i) => {
     const start = new Date(h.startTime);
     const icon = parseIconUrl(h.icon);
+    const pop = h.probabilityOfPrecipitation?.value ?? null;
     const rh = h.relativeHumidity?.value ?? null;
     const windMph = parseWindSpeedMph(h.windSpeed);
     const gustMph = valueAt(gridGust, start) != null ? gridWindMph(gridGust, start) : null;
@@ -51,6 +52,7 @@ function renderContent(container, { hours, gridGust, gridWindDir, units }) {
     return {
       start,
       icon,
+      pop,
       rh,
       windMph,
       gustMph,
@@ -78,6 +80,9 @@ function renderContent(container, { hours, gridGust, gridWindDir, units }) {
           <div class="hourly-chart-label">Temperature</div>
           <canvas id="hourly-temp-chart" height="${ROW_HEIGHT}"></canvas>
 
+          <div class="hourly-chart-label">Chance of Precipitation</div>
+          <canvas id="hourly-pop-chart" height="${ROW_HEIGHT}"></canvas>
+
           <div class="hourly-chart-label">Humidity</div>
           <canvas id="hourly-humidity-chart" height="${ROW_HEIGHT}"></canvas>
 
@@ -99,6 +104,7 @@ function renderContent(container, { hours, gridGust, gridWindDir, units }) {
   `;
 
   drawTempChart(rows, units, totalWidth);
+  drawPopChart(rows, totalWidth);
   drawHumidityChart(rows, totalWidth);
   drawWindChart(rows, totalWidth);
   enableDragScroll(document.getElementById('hourly-scroll'));
@@ -155,6 +161,26 @@ function drawTempChart(rows, units, totalWidth) {
       datasets: [{ data: values, borderColor: color, backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.3 }],
     },
     options: baseChartOptions(),
+    plugins: [pointLabelPlugin(labels, cssVar('--text', '#fff'))],
+  });
+}
+
+function drawPopChart(rows, totalWidth) {
+  const canvas = document.getElementById('hourly-pop-chart');
+  canvas.width = totalWidth;
+  charts.pop?.destroy();
+
+  const labels = rows.map((r) => (r.pop != null && r.pop > 0 ? `${Math.round(r.pop)}%` : ''));
+  const values = rows.map((r) => r.pop ?? 0);
+  const color = '#3399ff';
+
+  charts.pop = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: rows.map(() => ''),
+      datasets: [{ data: values, borderColor: color, backgroundColor: 'rgba(51,153,255,0.15)', fill: true, borderWidth: 2, pointRadius: 0, tension: 0.3 }],
+    },
+    options: { ...baseChartOptions(), scales: { x: { display: false, offset: false }, y: { display: false, min: 0, max: 100 } } },
     plugins: [pointLabelPlugin(labels, cssVar('--text', '#fff'))],
   });
 }
