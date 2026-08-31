@@ -152,39 +152,20 @@ header.app-header::after {
   filter: blur(14px);
 }
 
+/* Set as type rather than an image: the original mark reads by its 3D
+   shading, so flattening it to one colour cost too much legibility — and
+   as two stacked lines in a 22px slot each line was only ~9px tall.
+   One line of type nearly doubles the cap height, needs no per-theme
+   asset (it just takes currentColor), and stays sharp at any density. */
 .app-logo {
-  height: 22px;
-  width: auto;
-}
-
-/* The wordmark is a flat two-tone mark, so it needs one file per ground —
-   a single fill can't hold contrast on both near-black and near-white.
-   Mirrors the token pattern: light is the bare default, dark wins under
-   the media query and under an explicit dark choice. */
-.logo-dark {
-  display: none;
-}
-
-.logo-light {
-  display: block;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .logo-dark {
-    display: block;
-  }
-
-  :root:not([data-theme="light"]) .logo-light {
-    display: none;
-  }
-}
-
-:root[data-theme="dark"] .logo-dark {
-  display: block;
-}
-
-:root[data-theme="dark"] .logo-light {
-  display: none;
+  font-family: Rajdhani, "Bricolage Grotesque", system-ui, sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  white-space: nowrap;
 }
 
 #location-label {
