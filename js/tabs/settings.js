@@ -10,77 +10,137 @@ export function renderSettingsTab(container, callbacks = {}) {
   const settings = getSettings();
   const favorites = getFavorites();
 
+  const seg = (name, value, options) =>
+    `<div class="segmented" data-seg="${name}">${options
+      .map(
+        (o) =>
+          `<button type="button" data-value="${o.value}" class="${value === o.value ? 'active' : ''}">${o.label}</button>`
+      )
+      .join('')}</div>`;
+
+  const toggle = (id, on) =>
+    `<button type="button" class="toggle" id="${id}" role="switch" aria-checked="${on}"><span class="knob"></span></button>`;
+
+  const pinIcon = `<svg class="wx-icon" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="2.6"/></svg>`;
+
   container.innerHTML = `
-    <div class="card">
-      <h2>Units</h2>
-      <label><input type="radio" name="units" value="imperial" ${settings.units === 'imperial' ? 'checked' : ''}/> Imperial (°F, mph, in)</label><br/>
-      <label><input type="radio" name="units" value="metric" ${settings.units === 'metric' ? 'checked' : ''}/> Metric (°C, km/h, mm)</label>
+    <div class="tab-head">
+      <h1 class="tab-title">Settings</h1>
     </div>
 
-    <div class="card">
-      <h2>Theme</h2>
-      <label><input type="radio" name="theme" value="system" ${settings.theme === 'system' ? 'checked' : ''}/> Match system</label><br/>
-      <label><input type="radio" name="theme" value="light" ${settings.theme === 'light' ? 'checked' : ''}/> Light</label><br/>
-      <label><input type="radio" name="theme" value="dark" ${settings.theme === 'dark' ? 'checked' : ''}/> Dark (OLED black)</label>
+    <div class="settings-group">
+      <p class="section-label">Display</p>
+      <div class="settings-card">
+        <div class="settings-row">
+          <span class="row-title">Units</span>
+          ${seg('units', settings.units, [
+            { value: 'imperial', label: '°F' },
+            { value: 'metric', label: '°C' },
+          ])}
+        </div>
+        <div class="settings-row">
+          <span class="row-title">Theme</span>
+          ${seg('theme', settings.theme, [
+            { value: 'system', label: 'System' },
+            { value: 'light', label: 'Light' },
+            { value: 'dark', label: 'Dark' },
+          ])}
+        </div>
+      </div>
     </div>
 
-    <div class="card">
-      <h2>Favorite Locations</h2>
-      <div class="favorites-list">
+    <div class="settings-group">
+      <p class="section-label">Location</p>
+      <div class="settings-card">
+        <div class="settings-row">
+          <div>
+            <div class="row-title">Use my location</div>
+            <div class="row-sub">${
+              settings.homeLocationSource === 'current'
+                ? 'Home screen follows where you are'
+                : 'Home screen uses a saved place instead'
+            }</div>
+          </div>
+          ${toggle('use-current-location', settings.homeLocationSource === 'current')}
+        </div>
+
         ${
-          favorites.length
-            ? favorites
-                .map(
-                  (f) => `
-              <div class="favorite-row" data-id="${f.id}">
-                <span>${f.label}</span>
-                <button class="remove-favorite-btn" data-id="${f.id}">Remove</button>
-              </div>`
-                )
-                .join('')
-            : '<p class="meta">No favorites saved yet.</p>'
+          settings.homeLocationSource === 'favorite' && favorites.length
+            ? `<div class="settings-row">
+                 <span class="row-title">Show</span>
+                 ${seg(
+                   'home-favorite',
+                   settings.homeFavoriteId || favorites[0].id,
+                   favorites.map((f) => ({ value: f.id, label: f.label.split(',')[0] }))
+                 )}
+               </div>`
+            : ''
         }
+
+        <div class="favorites-list">
+          ${
+            favorites.length
+              ? favorites
+                  .map(
+                    (f) => `
+                <div class="favorite-row" data-id="${f.id}">
+                  <span class="fav-name">${pinIcon}<span>${f.label}</span></span>
+                  <button class="remove-favorite-btn" data-id="${f.id}">Remove</button>
+                </div>`
+                  )
+                  .join('')
+              : '<p class="settings-note">No saved places yet.</p>'
+          }
+        </div>
+        <div class="add-favorite">
+          <input type="text" id="favorite-search-input" placeholder="City, address, or zip code" />
+          <button id="favorite-search-btn">Search</button>
+        </div>
+        <div id="favorite-search-results"></div>
       </div>
-      <div class="add-favorite">
-        <input type="text" id="favorite-search-input" placeholder="City, address, or zip code" />
-        <button id="favorite-search-btn">Search</button>
+    </div>
+
+    <div class="settings-group">
+      <p class="section-label">Alerts</p>
+      <p class="settings-note">Saved now, delivered once push notifications ship.</p>
+      <div class="settings-card">
+        <div class="settings-row">
+          <div>
+            <div class="row-title">Severe weather</div>
+            <div class="row-sub">Watches and warnings near you</div>
+          </div>
+          ${toggle('notif-advisories', settings.notifications.advisories)}
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="row-title">Rain starting soon</div>
+            <div class="row-sub">Within the next half hour</div>
+          </div>
+          ${toggle('notif-precip', settings.notifications.incomingPrecip)}
+        </div>
       </div>
-      <div id="favorite-search-results"></div>
     </div>
 
-    <div class="card">
-      <h2>Home Screen Location</h2>
-      <label><input type="radio" name="home-location-source" value="current" ${settings.homeLocationSource === 'current' ? 'checked' : ''}/> Use current location</label><br/>
-      <label><input type="radio" name="home-location-source" value="favorite" ${settings.homeLocationSource === 'favorite' ? 'checked' : ''} ${!favorites.length ? 'disabled' : ''}/> Use a favorite:</label>
-      <select id="home-favorite-select" ${settings.homeLocationSource !== 'favorite' || !favorites.length ? 'disabled' : ''}>
-        ${favorites.map((f) => `<option value="${f.id}" ${settings.homeFavoriteId === f.id ? 'selected' : ''}>${f.label}</option>`).join('')}
-      </select>
-    </div>
-
-    <div class="card">
-      <h2>Notifications</h2>
-      <p class="meta">Push notification delivery is coming in a later update — these preferences are saved now so they're ready when it ships.</p>
-      <label><input type="checkbox" id="notif-advisories" ${settings.notifications.advisories ? 'checked' : ''}/> Weather advisories</label><br/>
-      <label><input type="checkbox" id="notif-precip" ${settings.notifications.incomingPrecip ? 'checked' : ''}/> Incoming precipitation (&lt;30 min)</label>
-    </div>
-
-    <div class="card">
-      <h2>Widget</h2>
-      <p class="meta">Configuration for the home-screen widget, once the Android widget ships.</p>
-      <label>Location:
-        <select id="widget-location-source">
-          <option value="current" ${settings.widget.locationSource === 'current' ? 'selected' : ''}>Current location</option>
-          ${favorites.map((f) => `<option value="${f.id}" ${settings.widget.locationSource === 'favorite' && settings.widget.favoriteId === f.id ? 'selected' : ''}>${f.label}</option>`).join('')}
-        </select>
-      </label><br/>
-      <label>Background:
-        <select id="widget-background">
-          <option value="none" ${settings.widget.background === 'none' ? 'selected' : ''}>None (fully transparent)</option>
-          <option value="color" ${settings.widget.background === 'color' ? 'selected' : ''}>Color</option>
-        </select>
-      </label><br/>
-      <label>Color: <input type="color" id="widget-color" value="${settings.widget.backgroundColor}" ${settings.widget.background !== 'color' ? 'disabled' : ''}/></label>
-      <label>Opacity: <input type="range" id="widget-opacity" min="0" max="1" step="0.05" value="${settings.widget.backgroundOpacity}" ${settings.widget.background !== 'color' ? 'disabled' : ''}/></label>
+    <div class="settings-group">
+      <p class="section-label">Home screen widget</p>
+      <p class="settings-note">Saved now, applied once the Android widget ships.</p>
+      <div class="settings-card">
+        <div class="settings-row">
+          <span class="row-title">Background</span>
+          ${seg('widget-background', settings.widget.background, [
+            { value: 'none', label: 'None' },
+            { value: 'color', label: 'Colour' },
+          ])}
+        </div>
+        <div class="settings-row">
+          <span class="row-title" style="${settings.widget.background !== 'color' ? 'color:var(--ink-4)' : ''}">Colour</span>
+          <input type="color" id="widget-color" value="${settings.widget.backgroundColor}" ${settings.widget.background !== 'color' ? 'disabled' : ''}/>
+        </div>
+        <div class="settings-row">
+          <span class="row-title" style="${settings.widget.background !== 'color' ? 'color:var(--ink-4)' : ''}">Opacity</span>
+          <input type="range" id="widget-opacity" min="0" max="1" step="0.05" value="${settings.widget.backgroundOpacity}" ${settings.widget.background !== 'color' ? 'disabled' : ''}/>
+        </div>
+      </div>
     </div>
   `;
 
@@ -88,29 +148,61 @@ export function renderSettingsTab(container, callbacks = {}) {
   wireFavorites(container, callbacks);
   wireHomeLocationSource(container, callbacks);
   wireNotifications(container);
-  wireWidget(container);
+  wireWidget(container, callbacks);
+}
+
+/** Segmented controls and toggles replace the old radio/checkbox/select set. */
+function onSegment(container, name, handler) {
+  const group = container.querySelector(`.segmented[data-seg="${name}"]`);
+  if (!group) return;
+  group.querySelectorAll('button').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (btn.classList.contains('active')) return;
+      group.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      handler(btn.dataset.value);
+    });
+  });
+}
+
+function onToggle(container, id, handler) {
+  const btn = container.querySelector(`#${id}`);
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const next = btn.getAttribute('aria-checked') !== 'true';
+    btn.setAttribute('aria-checked', String(next));
+    handler(next);
+  });
 }
 
 function wireUnitsAndTheme(container, callbacks) {
-  container.querySelectorAll('input[name="units"]').forEach((input) => {
-    input.addEventListener('change', (e) => {
-      updateSettings({ units: e.target.value });
-      callbacks.onUnitsOrThemeChange?.();
-    });
+  onSegment(container, 'units', (value) => {
+    updateSettings({ units: value });
+    callbacks.onUnitsOrThemeChange?.();
   });
 
-  container.querySelectorAll('input[name="theme"]').forEach((input) => {
-    input.addEventListener('change', (e) => {
-      updateSettings({ theme: e.target.value });
-      initTheme();
-    });
+  onSegment(container, 'theme', (value) => {
+    updateSettings({ theme: value });
+    initTheme();
+    // Charts read their colours from CSS tokens at draw time, so a theme
+    // change needs a re-render to pick up the new palette.
+    callbacks.onUnitsOrThemeChange?.();
   });
 }
 
 function wireFavorites(container, callbacks) {
   container.querySelectorAll('.remove-favorite-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      removeFavorite(btn.dataset.id);
+      const removedId = btn.dataset.id;
+      const remaining = removeFavorite(removedId);
+      // Don't strand the home screen pointing at a place that no longer exists.
+      const settings = getSettings();
+      if (settings.homeFavoriteId === removedId) {
+        updateSettings({
+          homeFavoriteId: remaining[0]?.id ?? null,
+          homeLocationSource: remaining.length ? settings.homeLocationSource : 'current',
+        });
+      }
       renderSettingsTab(container, callbacks);
       callbacks.onLocationSourceChange?.();
     });
@@ -123,17 +215,15 @@ function wireFavorites(container, callbacks) {
   const runSearch = async () => {
     const query = searchInput.value.trim();
     if (!query) return;
-    resultsEl.innerHTML = '<p class="loading">Searching…</p>';
+    resultsEl.innerHTML = '<p class="loading">Searching&hellip;</p>';
     try {
       const results = await geocode(query);
       if (!results.length) {
-        resultsEl.innerHTML = '<p class="meta">No matches found.</p>';
+        resultsEl.innerHTML = '<p class="settings-note">No matches found.</p>';
         return;
       }
       resultsEl.innerHTML = results
-        .map(
-          (r, i) => `<div class="geocode-result" data-index="${i}"><button class="add-result-btn" data-index="${i}">+ ${r.label}</button></div>`
-        )
+        .map((r, i) => `<button class="add-result-btn" data-index="${i}">${r.label}</button>`)
         .join('');
       resultsEl.querySelectorAll('.add-result-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
@@ -157,51 +247,48 @@ function wireFavorites(container, callbacks) {
 }
 
 function wireHomeLocationSource(container, callbacks) {
-  container.querySelectorAll('input[name="home-location-source"]').forEach((input) => {
-    input.addEventListener('change', (e) => {
-      const patch = { homeLocationSource: e.target.value };
-      if (e.target.value === 'favorite') {
-        // The <select> may already show the right favorite without firing its own
-        // 'change' event (e.g. only one favorite exists) — sync from its current value.
-        const select = container.querySelector('#home-favorite-select');
-        const favorites = getFavorites();
-        patch.homeFavoriteId = select?.value || favorites[0]?.id || null;
-      }
-      updateSettings(patch);
-      renderSettingsTab(container, callbacks);
-      callbacks.onLocationSourceChange?.();
-    });
+  onToggle(container, 'use-current-location', (on) => {
+    const favorites = getFavorites();
+    if (!on && !favorites.length) {
+      // Nothing to fall back to — keep following current location.
+      container.querySelector('#use-current-location').setAttribute('aria-checked', 'true');
+      return;
+    }
+    updateSettings(
+      on
+        ? { homeLocationSource: 'current' }
+        : { homeLocationSource: 'favorite', homeFavoriteId: getSettings().homeFavoriteId || favorites[0].id }
+    );
+    renderSettingsTab(container, callbacks);
+    callbacks.onLocationSourceChange?.();
   });
 
-  const select = container.querySelector('#home-favorite-select');
-  select?.addEventListener('change', (e) => {
-    updateSettings({ homeFavoriteId: e.target.value });
+  onSegment(container, 'home-favorite', (value) => {
+    updateSettings({ homeFavoriteId: value });
     callbacks.onLocationSourceChange?.();
   });
 }
 
 function wireNotifications(container) {
-  container.querySelector('#notif-advisories')?.addEventListener('change', (e) => {
+  onToggle(container, 'notif-advisories', (on) => {
     const settings = getSettings();
-    updateSettings({ notifications: { ...settings.notifications, advisories: e.target.checked } });
+    updateSettings({ notifications: { ...settings.notifications, advisories: on } });
   });
-  container.querySelector('#notif-precip')?.addEventListener('change', (e) => {
+  onToggle(container, 'notif-precip', (on) => {
     const settings = getSettings();
-    updateSettings({ notifications: { ...settings.notifications, incomingPrecip: e.target.checked } });
+    updateSettings({ notifications: { ...settings.notifications, incomingPrecip: on } });
   });
 }
 
-function wireWidget(container) {
-  const bgSelect = container.querySelector('#widget-background');
+function wireWidget(container, callbacks) {
   const colorInput = container.querySelector('#widget-color');
   const opacityInput = container.querySelector('#widget-opacity');
-  const locationSelect = container.querySelector('#widget-location-source');
 
-  bgSelect?.addEventListener('change', (e) => {
+  onSegment(container, 'widget-background', (value) => {
     const settings = getSettings();
-    updateSettings({ widget: { ...settings.widget, background: e.target.value } });
-    colorInput.disabled = e.target.value !== 'color';
-    opacityInput.disabled = e.target.value !== 'color';
+    updateSettings({ widget: { ...settings.widget, background: value } });
+    // Re-render so the colour/opacity rows visibly enable or grey out.
+    renderSettingsTab(container, callbacks);
   });
 
   colorInput?.addEventListener('change', (e) => {
@@ -212,15 +299,5 @@ function wireWidget(container) {
   opacityInput?.addEventListener('change', (e) => {
     const settings = getSettings();
     updateSettings({ widget: { ...settings.widget, backgroundOpacity: Number(e.target.value) } });
-  });
-
-  locationSelect?.addEventListener('change', (e) => {
-    const settings = getSettings();
-    const value = e.target.value;
-    if (value === 'current') {
-      updateSettings({ widget: { ...settings.widget, locationSource: 'current', favoriteId: null } });
-    } else {
-      updateSettings({ widget: { ...settings.widget, locationSource: 'favorite', favoriteId: value } });
-    }
   });
 }

@@ -66,11 +66,16 @@ async function reresolveLocationAndRefresh() {
   const favorites = getFavorites();
   try {
     currentLocation = await resolveActiveLocation(settings, favorites);
-    document.getElementById('location-label').textContent = currentLocation.label;
+    setLocationLabel(currentLocation.label);
     await refreshLoadedTabs();
   } catch (err) {
     console.error(err);
   }
+}
+
+/** Writes just the text half of the header location, leaving its pin icon intact. */
+function setLocationLabel(text) {
+  document.getElementById('location-name').textContent = text;
 }
 
 function isSameRoundedLocation(a, b) {
@@ -79,7 +84,6 @@ function isSameRoundedLocation(a, b) {
 }
 
 async function boot() {
-  const locationLabel = document.getElementById('location-label');
   const settings = getSettings();
   const favorites = getFavorites();
 
@@ -88,7 +92,7 @@ async function boot() {
     const fav = favorites.find((f) => f.id === settings.homeFavoriteId);
     if (fav) {
       currentLocation = fav;
-      locationLabel.textContent = fav.label;
+      setLocationLabel(fav.label);
       loadedTabs.add('home');
       try {
         await renderHomeTab(panels.home, currentLocation, settings);
@@ -105,7 +109,7 @@ async function boot() {
   const cachedLocation = getLastKnownLocation();
   if (cachedLocation) {
     currentLocation = cachedLocation;
-    locationLabel.textContent = cachedLocation.label;
+    setLocationLabel(cachedLocation.label);
     loadedTabs.add('home');
     try {
       await renderHomeTab(panels.home, currentLocation, settings);
@@ -117,7 +121,7 @@ async function boot() {
   try {
     const fresh = await getCurrentPosition();
     currentLocation = fresh;
-    locationLabel.textContent = fresh.label;
+    setLocationLabel(fresh.label);
 
     if (!cachedLocation) {
       loadedTabs.add('home');
@@ -128,7 +132,7 @@ async function boot() {
     // else: identical spot and label as last time — no need to flicker a re-render.
   } catch (err) {
     if (!cachedLocation) {
-      locationLabel.textContent = 'Location unavailable';
+      setLocationLabel('Location unavailable');
       panels.home.innerHTML = `<p class="error">Couldn't get your location. Check that location permission is allowed for this site, then reload.</p>`;
     }
     console.error(err);

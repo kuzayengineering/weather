@@ -5,8 +5,7 @@
 // Power curve rather than linear: the marginal size increase per mph grows
 // with speed, so the jump from calm to average wind is modest but average-to-
 // high wind is dramatic — a bigger, more exaggerated spread than a flat rate.
-// Tuned so ~10 mph (a typical "average" wind) lands at 40px, double the old
-// flat-rate formula's result at that speed.
+// Tuned so ~10 mph (a typical "average" wind) lands at 40px.
 const MIN_SIZE = 16;
 const MAX_SIZE = 80;
 const REFERENCE_MPH = 10;
@@ -23,5 +22,8 @@ export function windArrowSize(mph) {
 export function windArrowHtml(dirDeg, mph, extraClass = '') {
   if (dirDeg == null) return '';
   const size = windArrowSize(mph);
-  return `<span class="wind-arrow ${extraClass}" style="font-size:${size}px; transform: rotate(${(dirDeg + 180) % 360}deg)">↑</span>`;
+  // +180 because NWS reports the direction wind comes FROM; the arrow points
+  // the way the air is actually moving.
+  const rotation = (dirDeg + 180) % 360;
+  return `<span class="wind-arrow ${extraClass}" style="width:${size}px;height:${size}px;transform:rotate(${rotation}deg)"><svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V5"/><path d="M6 11l6-6 6 6"/></svg></span>`;
 }

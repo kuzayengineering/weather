@@ -26,16 +26,32 @@ export async function renderMapsTab(container, location) {
   }
 
   container.innerHTML = `
-    <div class="card" style="padding:0;">
-      <div id="leaflet-map" style="height:70vh; border-radius:12px; overflow:hidden;"></div>
-      <div class="map-controls">
-        <button id="radar-play-btn">▶ Animate Radar</button>
-        <span id="radar-frame-label" class="meta"></span>
+    <div class="map-layer-chips" id="map-layer-chips">
+      <button class="map-chip active" data-layer="radar">Radar</button>
+      <button class="map-chip" data-layer="cloud">Clouds</button>
+      <button class="map-chip" data-layer="aqi">Air</button>
+      <button class="map-chip" data-layer="advisories">Alerts</button>
+    </div>
+    <div id="leaflet-map"></div>
+    <div class="map-controls">
+      <div class="map-time">
+        <span class="stamp" id="radar-frame-label">Latest</span>
+        <span class="rel" id="radar-frame-rel">radar</span>
       </div>
+      <button class="map-play" id="radar-play-btn">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12-7.5Z"/></svg>
+        <span id="radar-play-text">Play</span>
+      </button>
+    </div>
+    <div class="radar-legend">
+      <span>Light</span>
+      <span class="ramp"></span>
+      <span>Heavy</span>
     </div>
   `;
 
-  map = L.map('leaflet-map').setView([location.lat, location.lon], 7);
+  map = L.map('leaflet-map', { zoomControl: false }).setView([location.lat, location.lon], 7);
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
 
   L.tileLayer(OSM_TILE_URL, {
     attribution: '&copy; OpenStreetMap contributors',
@@ -47,34 +63,35 @@ export async function renderMapsTab(container, location) {
     attribution: 'Radar: Iowa Environmental Mesonet / NEXRAD',
   }).addTo(map);
 
-  const cloudLayer = L.tileLayer(CLOUD_TILE_URL, {
-    opacity: 0.5,
-    attribution: 'Satellite: Iowa Environmental Mesonet / GOES-East',
+  const layers = {
+    radar: radarLayer,
+    cloud: L.tileLayer(CLOUD_TILE_URL, {
+      opacity: 0.5,
+      attribution: 'Satellite: Iowa Environmental Mesonet / GOES-East',
+    }),
+    advisories: L.layerGroup(),
+    aqi: L.layerGroup(),
+  };
+
+  // Chips replace Leaflet's boxed layer control — same toggling, less chrome.
+  container.querySelectorAll('.map-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const layer = layers[chip.dataset.layer];
+      if (!layer) return;
+      const on = map.hasLayer(layer);
+      if (on) map.removeLayer(layer);
+      else map.addLayer(layer);
+      chip.classList.toggle('active', !on);
+    });
   });
 
-  const advisoriesLayer = L.layerGroup();
-  const aqiLayer = L.layerGroup();
-
-  L.control
-    .layers(
-      null,
-      {
-        'Radar': radarLayer,
-        'Cloud Cover': cloudLayer,
-        'Advisories': advisoriesLayer,
-        'Air Quality': aqiLayer,
-      },
-      { collapsed: false }
-    )
-    .addTo(map);
-
-  L.control.scale({ imperial: true, metric: true }).addTo(map);
+  L.control.scale({ imperial: true, metric: true, position: 'bottomleft' }).addTo(map);
 
   loadRadarFrameList();
   container.querySelector('#radar-play-btn').addEventListener('click', toggleRadarAnimation);
 
-  loadAdvisories(location, advisoriesLayer);
-  loadAqi(location, aqiLayer);
+  loadAdvisories(location, layers.advisories);
+  loadAqi(location, layers.aqi);
 }
 
 async function loadRadarFrameList() {
@@ -94,24 +111,40 @@ async function loadRadarFrameList() {
 }
 
 function toggleRadarAnimation() {
-  const btn = document.getElementById('radar-play-btn');
+  const playText = document.getElementById('radar-play-text');
   const label = document.getElementById('radar-frame-label');
+  const rel = document.getElementById('radar-frame-rel');
 
   if (radarFrameTimer) {
     clearInterval(radarFrameTimer);
     radarFrameTimer = null;
-    btn.textContent = '▶ Animate Radar';
-    label.textContent = '';
+    playText.textContent = 'Play';
+    label.textContent = 'Latest';
+    rel.textContent = 'radar';
     radarLayer.setUrl(RADAR_TILE_URL.replace('{time}', '900913'));
     return;
   }
 
-  btn.textContent = '⏸ Stop';
+  playText.textContent = 'Pause';
   radarFrameIndex = 0;
   radarFrameTimer = setInterval(() => {
     const stamp = radarFrames[radarFrameIndex];
     radarLayer.setUrl(RADAR_TILE_URL.replace('{time}', stamp));
-    label.textContent = `${stamp.slice(4, 6)}/${stamp.slice(6, 8)} ${stamp.slice(8, 10)}:${stamp.slice(10, 12)} UTC`;
+
+    // stamp is YYYYMMDDHHMM in UTC — show it in the viewer's own clock instead
+    const frameTime = new Date(
+      Date.UTC(
+        +stamp.slice(0, 4),
+        +stamp.slice(4, 6) - 1,
+        +stamp.slice(6, 8),
+        +stamp.slice(8, 10),
+        +stamp.slice(10, 12)
+      )
+    );
+    label.textContent = frameTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const minsAgo = Math.round((Date.now() - frameTime.getTime()) / 60000);
+    rel.textContent = minsAgo <= 1 ? 'now' : `${minsAgo} min ago`;
+
     radarFrameIndex = (radarFrameIndex + 1) % radarFrames.length;
   }, 500);
 }

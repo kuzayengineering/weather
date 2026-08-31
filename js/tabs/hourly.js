@@ -2,10 +2,10 @@ import * as nws from '../api/nws.js';
 import { parseIconUrl } from '../lib/icons.js';
 import { formatTemp } from '../lib/units.js';
 import { valueAt, gridWindMph } from '../lib/griddata.js';
-import { windArrowSize } from '../lib/wind.js';
+import { windArrowHtml } from '../lib/wind.js';
 
 const HOURS_SHOWN = 36;
-const COL_WIDTH = 62; // px — keep in sync with css/styles.css .hourly-col width
+const COL_WIDTH = 58; // px — keep in sync with css/styles.css .hourly-col width
 const ROW_HEIGHT = 80; // px — height of each chart row (temp / humidity / wind)
 
 function parseWindSpeedMph(str) {
@@ -63,9 +63,11 @@ function renderContent(container, { hours, gridGust, gridWindDir, units }) {
   });
 
   container.innerHTML = `
-    <div class="card" style="padding-bottom:0.5rem;">
-      <h2>Next ${hours.length} Hours</h2>
-      <div class="hourly-scroll" id="hourly-scroll">
+    <div class="tab-head">
+      <h1 class="tab-title">Next ${hours.length} hours</h1>
+      <p class="tab-sub">Drag sideways to scan ahead</p>
+    </div>
+    <div class="hourly-scroll" id="hourly-scroll">
         <div class="hourly-inner" style="width:${totalWidth}px;">
           <div class="hourly-columns hourly-row-day">
             ${rows.map((r) => `<div class="hourly-col">${r.dayLabel}</div>`).join('')}
@@ -80,24 +82,19 @@ function renderContent(container, { hours, gridGust, gridWindDir, units }) {
           <div class="hourly-chart-label">Temperature</div>
           <canvas id="hourly-temp-chart" height="${ROW_HEIGHT}"></canvas>
 
-          <div class="hourly-chart-label">Chance of Precipitation</div>
+          <div class="hourly-chart-label">Chance of rain</div>
           <canvas id="hourly-pop-chart" height="${ROW_HEIGHT}"></canvas>
 
           <div class="hourly-chart-label">Humidity</div>
           <canvas id="hourly-humidity-chart" height="${ROW_HEIGHT}"></canvas>
 
-          <div class="hourly-chart-label">Wind Speed / Gust</div>
+          <div class="hourly-chart-label">Wind &amp; gusts <span class="unit">mph</span></div>
           <canvas id="hourly-wind-chart" height="${ROW_HEIGHT}"></canvas>
 
           <div class="hourly-columns hourly-row-wind-dir">
             ${rows
-              .map((r) => {
-                if (r.dirDeg == null) return '<div class="hourly-col"></div>';
-                const size = windArrowSize(r.windMph);
-                return `<div class="hourly-col"><span class="wind-arrow" style="font-size:${size}px; transform: rotate(${(r.dirDeg + 180) % 360}deg)">↑</span></div>`;
-              })
+              .map((r) => `<div class="hourly-col">${windArrowHtml(r.dirDeg, r.windMph)}</div>`)
               .join('')}
-          </div>
         </div>
       </div>
     </div>
@@ -112,6 +109,23 @@ function renderContent(container, { hours, gridGust, gridWindDir, units }) {
 
 function cssVar(name, fallback) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+
+/** "#e8c98a" -> "232,201,138", so tokens can drive canvas gradients. */
+function rgbOf(hex) {
+  const h = hex.replace('#', '').trim();
+  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+  const n = parseInt(full, 16);
+  return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+}
+
+/** Vertical fade used under the line charts. */
+function areaGradient(canvas, hex, topAlpha) {
+  const g = canvas.getContext('2d').createLinearGradient(0, 0, 0, canvas.height);
+  const rgb = rgbOf(hex);
+  g.addColorStop(0, `rgba(${rgb},${topAlpha})`);
+  g.addColorStop(1, `rgba(${rgb},0)`);
+  return g;
 }
 
 function baseChartOptions() {
@@ -134,7 +148,7 @@ function pointLabelPlugin(labels, color) {
       const { ctx } = chart;
       const meta = chart.getDatasetMeta(0);
       ctx.save();
-      ctx.font = '11px system-ui, sans-serif';
+      ctx.font = '600 11px "Bricolage Grotesque", system-ui, sans-serif';
       ctx.fillStyle = color;
       ctx.textAlign = 'center';
       meta.data.forEach((point, i) => {
@@ -152,16 +166,16 @@ function drawTempChart(rows, units, totalWidth) {
 
   const labels = rows.map((r) => formatTemp(r.tempF, units));
   const values = rows.map((r) => (units === 'metric' ? ((r.tempF - 32) * 5) / 9 : r.tempF));
-  const color = cssVar('--accent', '#5aa2f0');
+  const color = cssVar('--warm', '#e8c98a');
 
   charts.temp = new Chart(canvas, {
     type: 'line',
     data: {
       labels: rows.map(() => ''),
-      datasets: [{ data: values, borderColor: color, backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.3 }],
+      datasets: [{ data: values, borderColor: color, backgroundColor: areaGradient(canvas, color, 0.22), fill: true, borderWidth: 2, pointRadius: 0, tension: 0.3 }],
     },
     options: baseChartOptions(),
-    plugins: [pointLabelPlugin(labels, cssVar('--text', '#fff'))],
+    plugins: [pointLabelPlugin(labels, cssVar('--ink', '#f7f4e6'))],
   });
 }
 
@@ -172,16 +186,16 @@ function drawPopChart(rows, totalWidth) {
 
   const labels = rows.map((r) => (r.pop != null && r.pop > 0 ? `${Math.round(r.pop)}%` : ''));
   const values = rows.map((r) => r.pop ?? 0);
-  const color = '#3399ff';
+  const color = cssVar('--cool', '#9ec6ef');
 
   charts.pop = new Chart(canvas, {
     type: 'line',
     data: {
       labels: rows.map(() => ''),
-      datasets: [{ data: values, borderColor: color, backgroundColor: 'rgba(51,153,255,0.15)', fill: true, borderWidth: 2, pointRadius: 0, tension: 0.3 }],
+      datasets: [{ data: values, borderColor: color, backgroundColor: areaGradient(canvas, color, 0.26), fill: true, borderWidth: 2, pointRadius: 0, tension: 0.3 }],
     },
     options: { ...baseChartOptions(), scales: { x: { display: false, offset: false }, y: { display: false, min: 0, max: 100 } } },
-    plugins: [pointLabelPlugin(labels, cssVar('--text', '#fff'))],
+    plugins: [pointLabelPlugin(labels, cssVar('--ink', '#f7f4e6'))],
   });
 }
 
@@ -192,16 +206,16 @@ function drawHumidityChart(rows, totalWidth) {
 
   const labels = rows.map((r) => (r.rh != null ? `${Math.round(r.rh)}%` : ''));
   const values = rows.map((r) => r.rh ?? 0);
-  const color = '#4fc3f7';
+  const color = cssVar('--ink-3', '#8e9fae');
 
   charts.humidity = new Chart(canvas, {
     type: 'line',
     data: {
       labels: rows.map(() => ''),
-      datasets: [{ data: values, borderColor: color, backgroundColor: 'rgba(79,195,247,0.15)', fill: true, borderWidth: 2, pointRadius: 0, tension: 0.3 }],
+      datasets: [{ data: values, borderColor: color, backgroundColor: 'transparent', borderWidth: 1.8, pointRadius: 0, tension: 0.3 }],
     },
     options: { ...baseChartOptions(), scales: { x: { display: false, offset: false }, y: { display: false, min: 0, max: 100 } } },
-    plugins: [pointLabelPlugin(labels, cssVar('--text', '#fff'))],
+    plugins: [pointLabelPlugin(labels, cssVar('--ink', '#f7f4e6'))],
   });
 }
 
@@ -213,14 +227,15 @@ function drawWindChart(rows, totalWidth) {
   const speeds = rows.map((r) => r.windMph ?? 0);
   const gustDeltas = rows.map((r) => Math.max((r.gustMph ?? r.windMph ?? 0) - (r.windMph ?? 0), 0));
   const labels = rows.map((r) => (r.windMph != null ? `${Math.round(r.windMph)}${r.gustMph ? `/${Math.round(r.gustMph)}` : ''}` : ''));
+  const windColor = cssVar('--cool', '#9ec6ef');
 
   charts.wind = new Chart(canvas, {
     type: 'bar',
     data: {
       labels: rows.map(() => ''),
       datasets: [
-        { data: speeds, backgroundColor: '#66bb6a', stack: 'wind', barPercentage: 0.6 },
-        { data: gustDeltas, backgroundColor: 'rgba(102,187,106,0.4)', stack: 'wind', barPercentage: 0.6 },
+        { data: speeds, backgroundColor: windColor, stack: 'wind', barPercentage: 0.55, borderRadius: 3 },
+        { data: gustDeltas, backgroundColor: `rgba(${rgbOf(windColor)},0.2)`, stack: 'wind', barPercentage: 0.55, borderRadius: 3 },
       ],
     },
     options: {
@@ -234,8 +249,8 @@ function drawWindChart(rows, totalWidth) {
           const { ctx } = chart;
           const meta = chart.getDatasetMeta(1);
           ctx.save();
-          ctx.font = '10px system-ui, sans-serif';
-          ctx.fillStyle = cssVar('--text-muted', '#99a6b3');
+          ctx.font = '500 10px "Bricolage Grotesque", system-ui, sans-serif';
+          ctx.fillStyle = cssVar('--ink-3', '#8e9fae');
           ctx.textAlign = 'center';
           meta.data.forEach((point, i) => {
             if (labels[i]) ctx.fillText(labels[i], point.x, point.y - 6);

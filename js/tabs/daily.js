@@ -1,12 +1,11 @@
 import * as nws from '../api/nws.js';
-import { symbolFromSkyCover } from '../lib/icons.js';
+import { symbolFromSkyCover, precipSymbol, icon as wxIcon } from '../lib/icons.js';
 import { formatTemp } from '../lib/units.js';
 import { valueAt } from '../lib/griddata.js';
 import { getSunTimes } from '../lib/sun.js';
 import { evaluateDaylightPrecip, evaluateOvernightPrecip } from '../lib/dailySymbol.js';
 
 const DAYS_SHOWN = 7;
-const BAR_TRACK_HEIGHT = 90; // px
 
 function groupIntoDays(periods) {
   const days = [];
@@ -22,11 +21,6 @@ function groupIntoDays(periods) {
     if (days.length >= DAYS_SHOWN) break;
   }
   return days;
-}
-
-function pickPrecipIcon(shortForecast) {
-  const text = (shortForecast || '').toLowerCase();
-  return text.includes('thunder') ? '⛈️' : '🌧️';
 }
 
 export async function renderDailyTab(container, location, settings) {
@@ -56,11 +50,13 @@ function buildDayEntry(day, { gridPop, gridSkyCover, lat, lon }) {
   const dayPrecip = evaluateDaylightPrecip({ gridPop, dayDate: day.date, lat, lon });
 
   let daySymbol;
+  let isWarmIcon = false;
   if (dayPrecip.tier === 'rain') {
-    daySymbol = pickPrecipIcon(day.dayPeriod.shortForecast);
+    daySymbol = precipSymbol(day.dayPeriod.shortForecast);
   } else {
     const base = symbolFromSkyCover(daySkyCover, true);
-    daySymbol = dayPrecip.tier === 'brief' ? `${base.symbol}💧` : base.symbol;
+    daySymbol = base.symbol;
+    isWarmIcon = base.glyph === 'sun' || base.glyph === 'sunCloud';
   }
 
   let nightSymbol = null;
@@ -68,12 +64,12 @@ function buildDayEntry(day, { gridPop, gridSkyCover, lat, lon }) {
   if (day.nightPeriod) {
     nightPrecip = evaluateOvernightPrecip({ gridPop, dayDate: day.date, lat, lon });
     if (nightPrecip.tier === 'rain') {
-      nightSymbol = pickPrecipIcon(day.nightPeriod.shortForecast);
+      nightSymbol = precipSymbol(day.nightPeriod.shortForecast);
     } else {
       const nightMidpoint = sun ? new Date(sun.sunset.getTime() + 3 * 3600000) : new Date(day.nightPeriod.startTime);
       const nightSkyCover = valueAt(gridSkyCover, nightMidpoint) ?? 50;
       const base = symbolFromSkyCover(nightSkyCover, false);
-      nightSymbol = nightPrecip.tier === 'brief' ? `${base.symbol}💧` : base.symbol;
+      nightSymbol = base.symbol;
     }
   }
 
@@ -90,11 +86,15 @@ function buildDayEntry(day, { gridPop, gridSkyCover, lat, lon }) {
     highF,
     lowF,
     daySymbol,
+    isWarmIcon,
     dayPrecip,
     nightSymbol,
     nightPrecip,
   };
 }
+
+const dropletIcon = () => wxIcon('droplet');
+const infoIcon = () => wxIcon('unknown');
 
 function renderContent(container, entries, units) {
   const highs = entries.map((e) => e.highF);
@@ -103,37 +103,70 @@ function renderContent(container, entries, units) {
   const globalMin = Math.min(...lows, ...highs);
   const range = Math.max(globalMax - globalMin, 1);
 
-  container.innerHTML = `
-    <div class="card">
-      <h2>${entries.length}-Day Forecast</h2>
-      <div class="daily-scroll">
-        <div class="daily-columns">
-          ${entries
-            .map((e) => {
-              const lowF = e.lowF ?? globalMin;
-              const topPct = 100 * (1 - (e.highF - globalMin) / range);
-              const bottomPct = 100 * (1 - (lowF - globalMin) / range);
-              const barTop = (topPct / 100) * BAR_TRACK_HEIGHT;
-              const barHeight = Math.max(((bottomPct - topPct) / 100) * BAR_TRACK_HEIGHT, 4);
+  // A day whose icon stays dry while still carrying a short likely burst is
+  // the whole point of the rain rule — call it out so the icon isn't read as
+  // the app having missed the rain.
+  const briefDay = entries.find((e) => e.dayPrecip.tier === 'brief');
 
-              return `
-                <div class="daily-col">
-                  <div class="daily-day-label">${e.label}</div>
-                  <div class="daily-symbol">${e.daySymbol}</div>
-                  <div class="daily-precip-label">${e.dayPrecip.tier !== 'dry' ? `${e.dayPrecip.maxPop}% / ${e.dayPrecip.qualifyingHours}h` : ''}</div>
-                  <div class="daily-high">${formatTemp(e.highF, units)}</div>
-                  <div class="daily-bar-track" style="height:${BAR_TRACK_HEIGHT}px;">
-                    <div class="daily-bar" style="top:${barTop}px; height:${barHeight}px;"></div>
-                  </div>
-                  <div class="daily-low">${e.lowF != null ? formatTemp(e.lowF, units) : '—'}</div>
-                  <div class="daily-symbol daily-symbol-night">${e.nightSymbol || ''}</div>
-                  <div class="daily-precip-label">${e.nightPrecip && e.nightPrecip.tier !== 'dry' ? `${e.nightPrecip.maxPop}% / ${e.nightPrecip.qualifyingHours}h` : ''}</div>
-                </div>
-              `;
-            })
-            .join('')}
-        </div>
-      </div>
+  container.innerHTML = `
+    <div class="tab-head">
+      <h1 class="tab-title">${entries.length} days</h1>
+      <p class="tab-sub">Rain only shows when it is likely for more than an hour of daylight</p>
     </div>
+
+    <div class="daily-head">
+      <div class="daily-day">Day</div>
+      <div class="daily-symbol"></div>
+      <div class="daily-precip">Rain</div>
+      <div class="daily-low">Lo</div>
+      <div class="daily-bar-track" style="background:none;"></div>
+      <div class="daily-high">Hi</div>
+    </div>
+
+    ${entries
+      .map((e, i) => {
+        const lowF = e.lowF ?? globalMin;
+        const leftPct = 100 * ((lowF - globalMin) / range);
+        const widthPct = Math.max(100 * ((e.highF - lowF) / range), 3);
+
+        const wet = e.dayPrecip.tier === 'rain';
+        const brief = e.dayPrecip.tier === 'brief';
+        const symbolClass = wet ? 'is-wet' : e.dayPrecip.tier === 'dry' && e.isWarmIcon ? 'is-warm' : '';
+
+        return `
+          <div class="daily-row ${i === 0 ? 'is-today' : ''}">
+            <div class="daily-day">${i === 0 ? 'Today' : e.label}</div>
+            <div class="daily-symbol ${symbolClass}">
+              ${e.daySymbol}
+              ${brief ? `<span class="daily-burst">${dropletIcon()}</span>` : ''}
+            </div>
+            <div class="daily-precip">
+              ${
+                e.dayPrecip.tier !== 'dry'
+                  ? `<span class="chip ${brief ? 'is-brief' : ''}">${e.dayPrecip.maxPop}% &middot; ${e.dayPrecip.qualifyingHours}h</span>`
+                  : ''
+              }
+            </div>
+            <div class="daily-low">${e.lowF != null ? formatTemp(e.lowF, units).replace('°', '') : '—'}</div>
+            <div class="daily-bar-track">
+              <div class="daily-bar" style="left:${leftPct}%; width:${widthPct}%;"></div>
+            </div>
+            <div class="daily-high">${formatTemp(e.highF, units).replace('°', '')}</div>
+          </div>
+        `;
+      })
+      .join('')}
+
+    ${
+      briefDay
+        ? `<div class="daily-note">
+             ${infoIcon()}
+             <div>
+               <div class="note-title">${briefDay.label} keeps a dry icon</div>
+               <div class="note-body">One likely hour in an otherwise dry day does not earn a rain icon &mdash; the chip carries it instead.</div>
+             </div>
+           </div>`
+        : ''
+    }
   `;
 }

@@ -1,5 +1,5 @@
 import * as nws from '../api/nws.js';
-import { parseIconUrl } from '../lib/icons.js';
+import { parseIconUrl, icon as wxIcon } from '../lib/icons.js';
 import { formatTemp, formatPrecip, formatWindSpeed, kmhToMph } from '../lib/units.js';
 import { indoorEquivalentRH } from '../lib/psychro.js';
 import { valueAt, valuesInRange, gridWindMph } from '../lib/griddata.js';
@@ -189,93 +189,126 @@ function renderContent(container, { location, settings, points, alerts, current,
     overnightMaxTempF != null &&
     overnightMaxTempF < WINDOWS_OPEN_MAX_OUTDOOR_TEMP_F;
 
+  // Say WHY, not just the verdict — this is the app's most original call and
+  // the reasoning behind it was previously invisible.
+  let windowsWhy;
+  if (tonightIndoorRH == null || overnightMaxTempF == null) {
+    windowsWhy = 'Not enough overnight data to tell yet';
+  } else if (windowsOpen) {
+    windowsWhy = `Indoor humidity would sit near ${Math.round(tonightIndoorRH)}%, and it stays under ${formatTemp(WINDOWS_OPEN_MAX_OUTDOOR_TEMP_F, units)} out there`;
+  } else {
+    const tooHumid = tonightIndoorRH >= WINDOWS_OPEN_MAX_INDOOR_RH;
+    const tooWarm = overnightMaxTempF >= WINDOWS_OPEN_MAX_OUTDOOR_TEMP_F;
+    if (tooHumid && tooWarm) {
+      windowsWhy = `Indoor humidity would reach ${Math.round(tonightIndoorRH)}%, and it stays up at ${formatTemp(overnightMaxTempF, units)} overnight`;
+    } else if (tooHumid) {
+      windowsWhy = `Indoor humidity would reach ${Math.round(tonightIndoorRH)}% — needs under ${WINDOWS_OPEN_MAX_INDOOR_RH}%`;
+    } else {
+      windowsWhy = `Stays at ${formatTemp(overnightMaxTempF, units)} overnight — needs under ${formatTemp(WINDOWS_OPEN_MAX_OUTDOOR_TEMP_F, units)}`;
+    }
+  }
+
   const tonightIcon = tonight ? parseIconUrl(tonight.icon) : null;
   const tomorrowIcon = tomorrow ? parseIconUrl(tomorrow.icon) : null;
   const tomorrowNightIcon = tomorrowNight ? parseIconUrl(tomorrowNight.icon) : null;
+
+  const conditionText =
+    current.properties.textDescription && current.properties.textDescription !== icon.label
+      ? current.properties.textDescription
+      : icon.label;
 
   container.innerHTML = `
     <div class="stale-banner ${stale ? 'visible' : ''}">
       Showing cached data${staleAgeMs && Number.isFinite(staleAgeMs) ? ` from ${Math.round(staleAgeMs / 60000)} min ago` : ''}${staleAgeMs > 3600000 ? ' — this may be out of date.' : '.'}
     </div>
 
-    <div class="card">
-      <h2>Current Conditions in ${location.label}</h2>
-      ${alertFeatures.map((f) => `<div class="alert-banner">⚠️ ${f.properties.event}: ${f.properties.headline || ''}</div>`).join('')}
-      <div class="current-conditions">
-        <div class="symbol">${icon.symbol}</div>
-        <div>
-          <div class="temp">${currentTempF != null ? formatTemp(currentTempF, units) : '—'}</div>
-          <div class="meta">${icon.label}${current.properties.textDescription && current.properties.textDescription !== icon.label ? ` · ${current.properties.textDescription}` : ''}</div>
-          <div class="meta">RH ${currentRH != null ? Math.round(currentRH) : '—'}%</div>
-          <div class="meta">
-            ${windArrowHtml(currentWindDir, currentWindMph, 'wind-arrow-inline')}
-            Wind ${currentWindMph != null ? formatWindSpeed(currentWindMph, units) : '—'}
-          </div>
-          <div class="meta">AQI ${currentAqiText || '—'}</div>
-        </div>
+    ${alertFeatures
+      .map(
+        (f) => `<div class="alert-banner">${f.properties.event}${f.properties.headline ? ` &middot; ${f.properties.headline}` : ''}</div>`
+      )
+      .join('')}
+
+    <div class="hero">
+      <div class="hero-place">${location.label}</div>
+      <div class="hero-icon">${icon.symbol}</div>
+      <div class="hero-temp">
+        <span class="value">${currentTempF != null ? formatTemp(currentTempF, units).replace('°', '') : '—'}</span>
+        <span class="deg">°</span>
       </div>
-      <p class="meta" style="margin-top:0.75rem;">
+      <div class="hero-condition">${icon.label}</div>
+      <div class="hero-meta">
+        <span>${conditionText}</span>
+        <span>&middot;</span>
+        <span>RH ${currentRH != null ? Math.round(currentRH) : '—'}%</span>
+        <span>&middot;</span>
+        <span>${windArrowHtml(currentWindDir, currentWindMph, 'wind-arrow-inline')}${currentWindMph != null ? formatWindSpeed(currentWindMph, units) : '—'}</span>
+        <span>&middot;</span>
+        <span>Air ${currentAqiText || '—'}</span>
+      </div>
+    </div>
+
+    <div class="precip-note ${precipSummary.expected ? '' : 'is-dry'}">
+      ${wxIcon(precipSummary.expected ? 'droplet' : 'sun')}
+      <div>
         ${
           precipSummary.expected
-            ? `Expect ${precipSummary.kind} ${precipSummary.startTime ? `around ${formatTime(precipSummary.startTime)}` : 'in the next 8 hours'}${precipSummary.amountIn > 0 ? `, about ${formatPrecip(precipSummary.amountIn, units)}` : ''}.`
-            : 'No precipitation expected in the next 8 hours.'
+            ? `${precipSummary.kind.charAt(0).toUpperCase()}${precipSummary.kind.slice(1)}${precipSummary.startTime ? ` around <strong>${formatTime(precipSummary.startTime)}</strong>` : ' in the next 8 hours'}${precipSummary.amountIn > 0 ? `, about ${formatPrecip(precipSummary.amountIn, units)}` : ''}`
+            : 'No precipitation expected in the next 8 hours'
         }
-      </p>
-    </div>
-
-    <div class="card">
-      <h2>Upcoming</h2>
-      <div class="upcoming-grid">
-        <div class="item">
-          <div class="label">Tonight</div>
-          ${tonightIcon ? `<div class="upcoming-symbol">${tonightIcon.symbol}</div>` : ''}
-          <div class="value">${tonight ? formatTemp(tonight.temperatureUnit === 'F' ? tonight.temperature : cToF(tonight.temperature), units) : '—'}</div>
-          <div class="sub">${tonightLowTime ? `at ${formatTime(tonightLowTime)}` : ''}</div>
-          <div class="sub">Dew pt ${tonightDewF != null ? formatTemp(tonightDewF, units) : '—'}</div>
-          <div class="sub">RH ${tonightRH != null ? Math.round(tonightRH) : '—'}%</div>
-          <div class="sub">Indoor RH @70°F: ${tonightIndoorRH != null ? Math.round(tonightIndoorRH) + '%' : '—'}</div>
-          <div class="sub sub-wind">
-            ${windArrowHtml(tonightWindDir, tonightWindMph, 'wind-arrow-inline')}
-            ${tonightWindMph != null ? formatWindSpeed(tonightWindMph, units) : '—'}
-          </div>
-          <div class="sub">AQI ${tonightAqiText || '—'}</div>
-          <div class="windows-badge ${windowsOpen ? 'windows-open' : 'windows-closed'}">
-            <span class="windows-symbol">${windowsOpen ? '🌬️' : '🪟'}</span>
-            <span>${windowsOpen ? 'Windows Open' : 'Windows Closed'}</span>
-          </div>
-        </div>
-        <div class="item">
-          <div class="label">Tomorrow's High</div>
-          ${tomorrowIcon ? `<div class="upcoming-symbol">${tomorrowIcon.symbol}</div>` : ''}
-          <div class="value">${tomorrow ? formatTemp(tomorrow.temperatureUnit === 'F' ? tomorrow.temperature : cToF(tomorrow.temperature), units) : '—'}</div>
-          <div class="sub">${tomorrowHighTime ? `at ${formatTime(tomorrowHighTime)}` : ''}</div>
-          <div class="sub">RH ${tomorrowRH != null ? Math.round(tomorrowRH) : '—'}%</div>
-          <div class="sub sub-wind">
-            ${windArrowHtml(tomorrowWindDir, tomorrowWindMph, 'wind-arrow-inline')}
-            ${tomorrowWindMph != null ? formatWindSpeed(tomorrowWindMph, units) : '—'}
-          </div>
-          <div class="sub">AQI ${tomorrowAqiText || '—'}</div>
-        </div>
-        <div class="item">
-          <div class="label">Tomorrow Night's Low</div>
-          ${tomorrowNightIcon ? `<div class="upcoming-symbol">${tomorrowNightIcon.symbol}</div>` : ''}
-          <div class="value">${tomorrowNight ? formatTemp(tomorrowNight.temperatureUnit === 'F' ? tomorrowNight.temperature : cToF(tomorrowNight.temperature), units) : '—'}</div>
-          <div class="sub">${tomorrowNightLowTime ? `at ${formatTime(tomorrowNightLowTime)}` : ''}</div>
-          <div class="sub">RH ${tomorrowNightRH != null ? Math.round(tomorrowNightRH) : '—'}%</div>
-          <div class="sub sub-wind">
-            ${windArrowHtml(tomorrowNightWindDir, tomorrowNightWindMph, 'wind-arrow-inline')}
-            ${tomorrowNightWindMph != null ? formatWindSpeed(tomorrowNightWindMph, units) : '—'}
-          </div>
-          <div class="sub">AQI ${tomorrowNightAqiText || '—'}</div>
-        </div>
       </div>
     </div>
 
-    <div class="card radar-box">
-      <h2>Radar</h2>
-      <div id="home-radar-map" class="home-map"></div>
-      <button id="open-full-map-btn" class="link-btn">Open full map ↗</button>
+    <p class="section-label">Next three</p>
+    <div class="upcoming-grid">
+      <div class="item">
+        <div class="label">Tonight</div>
+        ${tonightIcon ? `<div class="upcoming-symbol">${tonightIcon.symbol}</div>` : ''}
+        <div class="value">${tonight ? formatTemp(tonight.temperatureUnit === 'F' ? tonight.temperature : cToF(tonight.temperature), units) : '—'}</div>
+        <div class="sub">${tonightLowTime ? formatTime(tonightLowTime) : ''}</div>
+        <div class="sub">Dew ${tonightDewF != null ? formatTemp(tonightDewF, units) : '—'} &middot; RH ${tonightRH != null ? Math.round(tonightRH) : '—'}%</div>
+        <div class="sub sub-wind">
+          ${windArrowHtml(tonightWindDir, tonightWindMph, 'wind-arrow-inline')}
+          ${tonightWindMph != null ? formatWindSpeed(tonightWindMph, units) : '—'}
+        </div>
+        <div class="sub">Air ${tonightAqiText || '—'}</div>
+      </div>
+      <div class="item is-warm">
+        <div class="label">Tomorrow</div>
+        ${tomorrowIcon ? `<div class="upcoming-symbol">${tomorrowIcon.symbol}</div>` : ''}
+        <div class="value">${tomorrow ? formatTemp(tomorrow.temperatureUnit === 'F' ? tomorrow.temperature : cToF(tomorrow.temperature), units) : '—'}</div>
+        <div class="sub">${tomorrowHighTime ? formatTime(tomorrowHighTime) : ''}</div>
+        <div class="sub">RH ${tomorrowRH != null ? Math.round(tomorrowRH) : '—'}%</div>
+        <div class="sub sub-wind">
+          ${windArrowHtml(tomorrowWindDir, tomorrowWindMph, 'wind-arrow-inline')}
+          ${tomorrowWindMph != null ? formatWindSpeed(tomorrowWindMph, units) : '—'}
+        </div>
+        <div class="sub">Air ${tomorrowAqiText || '—'}</div>
+      </div>
+      <div class="item">
+        <div class="label">Tmw night</div>
+        ${tomorrowNightIcon ? `<div class="upcoming-symbol">${tomorrowNightIcon.symbol}</div>` : ''}
+        <div class="value">${tomorrowNight ? formatTemp(tomorrowNight.temperatureUnit === 'F' ? tomorrowNight.temperature : cToF(tomorrowNight.temperature), units) : '—'}</div>
+        <div class="sub">${tomorrowNightLowTime ? formatTime(tomorrowNightLowTime) : ''}</div>
+        <div class="sub">RH ${tomorrowNightRH != null ? Math.round(tomorrowNightRH) : '—'}%</div>
+        <div class="sub sub-wind">
+          ${windArrowHtml(tomorrowNightWindDir, tomorrowNightWindMph, 'wind-arrow-inline')}
+          ${tomorrowNightWindMph != null ? formatWindSpeed(tomorrowNightWindMph, units) : '—'}
+        </div>
+        <div class="sub">Air ${tomorrowNightAqiText || '—'}</div>
+      </div>
     </div>
+
+    <div class="windows-badge ${windowsOpen ? 'windows-open' : 'windows-closed'}">
+      <span class="windows-symbol">${wxIcon(windowsOpen ? 'windowOpen' : 'windowClosed')}</span>
+      <div class="windows-copy">
+        <div class="windows-title">${windowsOpen ? 'Open the windows tonight' : 'Keep windows closed tonight'}</div>
+        <div class="windows-why">${windowsWhy}</div>
+      </div>
+    </div>
+
+    <p class="section-label">Radar</p>
+    <div id="home-radar-map" class="home-map"></div>
+    <button id="open-full-map-btn" class="link-btn">Open full map &nearr;</button>
   `;
 
   container.querySelector('#open-full-map-btn')?.addEventListener('click', () => {
